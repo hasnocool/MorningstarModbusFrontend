@@ -76,6 +76,8 @@ export function RegistersPage() {
           address: item.address,
           function: item.function,
           unit: item.unit ?? undefined,
+          description: undefined,
+          firmware: undefined,
           raw: {},
         }))
     const term = query.trim().toLowerCase()
