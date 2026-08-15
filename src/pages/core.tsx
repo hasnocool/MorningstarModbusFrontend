@@ -1,6 +1,7 @@
 import {
   Activity,
   BatteryCharging,
+  Cable,
   Clock3,
   Gauge,
   Radio,
@@ -17,6 +18,7 @@ import {
   useLatest,
   useRegisterMap,
 } from '../api'
+import { useControllers, type ControllerRecord } from '../controller-api'
 import {
   DataFreshness,
   DeviceHeadline,
@@ -45,66 +47,176 @@ import {
 } from '../lib'
 import { useDeviceRoute } from '../app'
 
+function connectionLabel(controller: ControllerRecord) {
+  const connection = controller.current_connection
+  if (connection.transport === 'tcp') {
+    return `${connection.target}:${connection.port ?? 502}`
+  }
+  return connection.target
+}
+
+function ControllerCard({ controller }: { controller: ControllerRecord }) {
+  const latest = useLatest(controller.current_device_id)
+  const battery = metric(latest.data, 'batteryVoltage')
+  const power = metric(latest.data, 'outputPower') ?? metric(latest.data, 'inputPower')
+  const dailyEnergy = metric(latest.data, 'dailyChargeWh')
+  const state = metric(latest.data, 'chargeState')
+
+  return (
+    <article className="controller-card">
+      <div className="controller-card-head">
+        <div className="controller-title-block">
+          <div className="device-icon">
+            <Gauge size={22} />
+          </div>
+          <div>
+            <span className="controller-family">{controller.family || 'Morningstar controller'}</span>
+            <h2>{controller.model || controller.product_code || controller.profile}</h2>
+            <div className="controller-identity-line">
+              {controller.serial_number ? (
+                <span>Serial {controller.serial_number}</span>
+              ) : (
+                <span>Physical serial unavailable</span>
+              )}
+              {controller.firmware && <span>Firmware {controller.firmware}</span>}
+            </div>
+          </div>
+        </div>
+        <StatusBadge status={controller.status} />
+      </div>
+
+      <div className="controller-live-grid">
+        <div>
+          <span>Generated today</span>
+          <strong>{formatValue(valueOf(dailyEnergy), dailyEnergy?.unit)}</strong>
+        </div>
+        <div>
+          <span>Battery</span>
+          <strong>{formatValue(valueOf(battery), battery?.unit)}</strong>
+        </div>
+        <div>
+          <span>Charging power</span>
+          <strong>{formatValue(valueOf(power), power?.unit)}</strong>
+        </div>
+        <div>
+          <span>Charge stage</span>
+          <strong>{formatValue(valueOf(state))}</strong>
+        </div>
+      </div>
+
+      <div className="controller-connection-summary">
+        <div className="controller-connection-icon">
+          <Cable size={18} />
+        </div>
+        <div>
+          <span>Current connection</span>
+          <strong>{connectionLabel(controller)}</strong>
+          <small>
+            {controller.current_connection.transport.toUpperCase()} · Modbus ID{' '}
+            {controller.current_connection.unit_id} · last seen {formatRelativeTime(controller.last_seen)}
+          </small>
+        </div>
+      </div>
+
+      {controller.identity_source === 'endpoint' && (
+        <div className="inline-warning">
+          Controller serial metadata is not available yet, so this controller is temporarily identified by
+          its connection endpoint.
+        </div>
+      )}
+
+      <div className="controller-card-actions">
+        <Link
+          className="primary-button controller-open-button"
+          to={`/devices/${encodeDeviceId(controller.current_device_id)}/overview`}
+        >
+          Open controller
+        </Link>
+        <span>
+          {controller.connection_count} known connection{controller.connection_count === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      {controller.connection_count > 1 && (
+        <details className="connection-history">
+          <summary>Connection history</summary>
+          <div className="connection-history-list">
+            {controller.connections.map((connection) => (
+              <div className="connection-history-row" key={connection.device_id}>
+                <StatusBadge status={connection.status} label={connection.role === 'current' ? 'Current' : 'Previous'} />
+                <div>
+                  <strong>
+                    {connection.transport === 'tcp'
+                      ? `${connection.target}:${connection.port ?? 502}`
+                      : connection.target}
+                  </strong>
+                  <span>
+                    {connection.transport.toUpperCase()} · Modbus ID {connection.unit_id}
+                  </span>
+                </div>
+                <time>{formatRelativeTime(connection.last_seen)}</time>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </article>
+  )
+}
+
 export function DevicesPage() {
-  const devices = useDevices()
-  if (devices.isLoading) return <LoadingState label="Discovering stored devices…" />
-  if (devices.isError) return <ErrorState title="Device inventory unavailable" />
-  if (!devices.data?.length) {
+  const controllers = useControllers()
+  if (controllers.isLoading) return <LoadingState label="Building controller inventory…" />
+  if (controllers.isError) return <ErrorState title="Controller inventory unavailable" />
+  if (!controllers.data?.length) {
     return (
       <div className="page">
         <div className="page-heading">
           <span className="eyebrow">Inventory</span>
-          <h1>Devices</h1>
+          <h1>Controllers</h1>
         </div>
-        <EmptyState title="No Morningstar devices are stored yet">
+        <EmptyState title="No Morningstar controllers are stored yet">
           Start the backend watcher, connect a controller, and this inventory will populate automatically.
         </EmptyState>
       </div>
     )
   }
 
+  const knownConnections = controllers.data.reduce((total, item) => total + item.connection_count, 0)
+  const activeConnections = controllers.data.reduce(
+    (total, item) => total + item.active_connection_count,
+    0,
+  )
+
   return (
     <div className="page">
-      <div className="page-heading">
-        <span className="eyebrow">Inventory</span>
-        <h1>Devices</h1>
-        <p>Persisted Morningstar endpoints, transport status, profile selection, and last contact.</p>
+      <div className="page-heading controller-inventory-heading">
+        <span className="eyebrow">Physical controller inventory</span>
+        <h1>Controllers</h1>
+        <p>
+          One card represents one physical Morningstar controller. USB paths and network endpoints are
+          connection history, not separate controllers.
+        </p>
       </div>
-      <div className="device-grid">
-        {devices.data.map((device) => (
-          <Link
-            key={device.id}
-            className="device-card"
-            to={`/devices/${encodeDeviceId(device.id)}/overview`}
-          >
-            <div className="device-card-top">
-              <div className="device-icon">
-                <Gauge size={22} />
-              </div>
-              <StatusBadge status={device.status} />
-            </div>
-            <strong>{device.product_code || device.profile}</strong>
-            <span>{device.vendor_name || 'Morningstar'}</span>
-            <dl>
-              <div>
-                <dt>Transport</dt>
-                <dd>{device.transport.toUpperCase()}</dd>
-              </div>
-              <div>
-                <dt>Unit</dt>
-                <dd>{device.unit_id}</dd>
-              </div>
-              <div>
-                <dt>Profile</dt>
-                <dd>{device.profile}</dd>
-              </div>
-              <div>
-                <dt>Last seen</dt>
-                <dd>{formatRelativeTime(device.last_seen)}</dd>
-              </div>
-            </dl>
-            {device.last_error && <div className="inline-warning">{device.last_error}</div>}
-          </Link>
+
+      <div className="controller-inventory-summary">
+        <div>
+          <span>Controllers</span>
+          <strong>{controllers.data.length}</strong>
+        </div>
+        <div>
+          <span>Active connections</span>
+          <strong>{activeConnections}</strong>
+        </div>
+        <div>
+          <span>Known connections</span>
+          <strong>{knownConnections}</strong>
+        </div>
+      </div>
+
+      <div className="controller-grid">
+        {controllers.data.map((controller) => (
+          <ControllerCard key={controller.controller_id} controller={controller} />
         ))}
       </div>
     </div>
@@ -140,14 +252,14 @@ export function OverviewPage() {
           <span className="eyebrow">Solar operations</span>
           <h1>System overview</h1>
         </div>
-        <EmptyState title="No active device selected">
-          Add a device through the backend watcher or choose one from the device inventory.
+        <EmptyState title="No active controller selected">
+          Add a controller through the backend watcher or choose one from the controller inventory.
         </EmptyState>
       </div>
     )
   }
   if (!device && devices.isLoading) return <LoadingState />
-  if (!device) return <ErrorState title="Device not found" detail="The selected stored device no longer exists." />
+  if (!device) return <ErrorState title="Connection not found" detail="The selected stored connection no longer exists." />
 
   const series = history.data?.series[0]?.points ?? []
   const sparkValues = series
@@ -296,7 +408,7 @@ export function LivePage() {
   const devices = useDevices()
   const device = devices.data?.find((item) => item.id === deviceId)
 
-  if (!deviceId) return <ErrorState title="No device selected" />
+  if (!deviceId) return <ErrorState title="No controller selected" />
   if (latest.isLoading) return <LoadingState label="Loading live register snapshot…" />
   if (latest.isError || !latest.data) return <ErrorState title="Live telemetry unavailable" />
 
