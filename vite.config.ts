@@ -27,14 +27,6 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: true,
       target: 'es2022',
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            react: ['react', 'react-dom', 'react-router-dom'],
-            query: ['@tanstack/react-query'],
-          },
-        },
-      },
     },
     test: {
       environment: 'jsdom',
