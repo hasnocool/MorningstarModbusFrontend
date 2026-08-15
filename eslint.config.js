@@ -7,6 +7,13 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'playwright-report', 'src/api/generated.d.ts'] },
   js.configs.recommended,
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: globals.node,
+    },
+  },
   ...tseslint.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],
