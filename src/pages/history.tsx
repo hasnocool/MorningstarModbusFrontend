@@ -10,9 +10,16 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BarChart3, Clock3, Download, Layers3, RotateCcw } from 'lucide-react'
 import { useDeviceRoute } from '../app'
-import { ApiError, useHistory, useLatest, useRegisterStats } from '../api'
+import { ApiError, useHistory, useLatest, useRegisterMap, useRegisterStats } from '../api'
 import { ErrorState, LoadingState, Panel, SummaryStat } from '../components'
-import { formatValue, rangeForPreset, valueOf } from '../lib'
+import {
+  flattenRegisterDefinitions,
+  formatValue,
+  plainRegisterLabel,
+  rangeForPreset,
+  semanticRegisterValues,
+  valueOf,
+} from '../lib'
 
 registerECharts([
   LineChart,
@@ -85,6 +92,7 @@ function HistoryChart({
       ],
       series: [
         ...numeric.flatMap((item) => {
+          const label = plainRegisterLabel(item.name)
           const avg = item.points.map((point) => [
             point.bucket_start ?? point.observed_at,
             point.avg ?? point.value ?? point.last,
@@ -103,7 +111,7 @@ function HistoryChart({
 
           const base: any[] = [
             {
-              name: item.name,
+              name: label,
               type: 'line',
               showSymbol: false,
               connectNulls: false,
@@ -117,7 +125,7 @@ function HistoryChart({
           if (envelope) {
             base.push(
               {
-                name: `${item.name} min`,
+                name: `${label} min`,
                 type: 'line',
                 showSymbol: false,
                 data: min,
@@ -125,7 +133,7 @@ function HistoryChart({
                 tooltip: { show: false },
               },
               {
-                name: `${item.name} max`,
+                name: `${label} max`,
                 type: 'line',
                 showSymbol: false,
                 data: max,
@@ -168,7 +176,11 @@ function StateTimeline({
       <div className="state-timeline-list">
         {stateSeries.map((item) => (
           <div className="state-timeline-row" key={item.name}>
-            <code>{item.name}</code>
+            <span>
+              <strong>{plainRegisterLabel(item.name)}</strong>
+              <br />
+              <code>{item.name}</code>
+            </span>
             <div className="state-segments">
               {item.points.slice(-80).map((point, index) => (
                 <span
@@ -190,11 +202,19 @@ function StateTimeline({
 export default function HistoryPage() {
   const { deviceId } = useDeviceRoute()
   const latest = useLatest(deviceId)
+  const registerMap = useRegisterMap(deviceId)
   const [preset, setPreset] = useState('24h')
   const [resolution, setResolution] = useState('auto')
+  const definitions = useMemo(
+    () => flattenRegisterDefinitions(registerMap.data),
+    [registerMap.data],
+  )
   const available = useMemo(
-    () => [...(latest.data?.values ?? [])].sort((a, b) => a.address - b.address),
-    [latest.data?.values],
+    () =>
+      semanticRegisterValues(latest.data?.values ?? [], definitions).sort(
+        (a, b) => a.address - b.address,
+      ),
+    [definitions, latest.data?.values],
   )
   const defaultNames = useMemo(() => {
     const priorities = [
@@ -287,16 +307,19 @@ export default function HistoryPage() {
 
       <div className="history-layout">
         <Panel eyebrow="Series" title="Registers" className="series-picker">
-          <p className="muted">Choose up to eight series. Numeric and state data are rendered differently.</p>
+          <p className="muted">
+            Choose up to eight documented series. Raw aliases are only shown for unmapped addresses.
+          </p>
           <div className="series-list">
             {available.map((register) => (
-              <label key={register.register_name}>
+              <label key={`${register.register_name}-${register.address}`}>
                 <input
                   type="checkbox"
                   checked={selectedNames.includes(register.register_name)}
                   onChange={() => toggle(register.register_name)}
                 />
                 <span>
+                  <strong>{plainRegisterLabel(register.register_name)}</strong>
                   <code>{register.register_name}</code>
                   <small>{formatValue(valueOf(register), register.unit)}</small>
                 </span>
@@ -337,26 +360,29 @@ export default function HistoryPage() {
 
           <Panel eyebrow="Window statistics" title="Summary">
             <div className="summary-grid compact-summary">
-              {(stats.data?.registers ?? []).slice(0, 8).map((stat, index) => (
-                <SummaryStat
-                  key={String(stat.name ?? stat.register_name ?? index)}
-                  label={String(stat.name ?? stat.register_name ?? 'Register')}
-                  value={
-                    stat.kind === 'text'
-                      ? String(stat.last ?? '—')
-                      : formatValue(stat.avg ?? stat.last, stat.unit as string | undefined)
-                  }
-                  helper={
-                    stat.kind === 'text'
-                      ? `${stat.transitions ?? 0} transitions`
-                      : `min ${formatValue(stat.min, stat.unit as string | undefined)} · max ${formatValue(
-                          stat.max,
-                          stat.unit as string | undefined,
-                        )}`
-                  }
-                  icon={<BarChart3 size={18} />}
-                />
-              ))}
+              {(stats.data?.registers ?? []).slice(0, 8).map((stat, index) => {
+                const name = String(stat.name ?? stat.register_name ?? `Register ${index + 1}`)
+                return (
+                  <SummaryStat
+                    key={String(stat.name ?? stat.register_name ?? index)}
+                    label={plainRegisterLabel(name)}
+                    value={
+                      stat.kind === 'text'
+                        ? String(stat.last ?? '—')
+                        : formatValue(stat.avg ?? stat.last, stat.unit as string | undefined)
+                    }
+                    helper={
+                      stat.kind === 'text'
+                        ? `${stat.transitions ?? 0} transitions`
+                        : `min ${formatValue(stat.min, stat.unit as string | undefined)} · max ${formatValue(
+                            stat.max,
+                            stat.unit as string | undefined,
+                          )}`
+                    }
+                    icon={<BarChart3 size={18} />}
+                  />
+                )
+              })}
             </div>
           </Panel>
         </div>

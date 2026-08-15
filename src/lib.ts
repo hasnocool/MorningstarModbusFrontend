@@ -126,7 +126,7 @@ export function formatValue(value: unknown, unit?: string | null, digits = 2): s
     }).format(value)
     return unit ? `${formatted} ${unit}` : formatted
   }
-  return unit ? `${String(value)} ${unit}` : String(value)
+  return String(value)
 }
 
 export function formatRelativeTime(value?: string | null): string {
@@ -190,11 +190,75 @@ export interface FlatRegisterDefinition {
   name: string
   address?: number
   function?: string
+  words?: number
   description?: string
   unit?: string
   scale?: unknown
   firmware?: string
   raw: Record<string, unknown>
+}
+
+const REGISTER_LABEL_OVERRIDES: Record<string, string> = {
+  battery_voltage: 'Battery voltage',
+  battery_terminal_voltage: 'Battery terminal voltage',
+  battery_sense_voltage: 'Battery sense voltage',
+  battery_voltage_1m: 'Battery voltage (1-minute filtered)',
+  charge_current_1m: 'Charge current (1-minute filtered)',
+  battery_charge_current: 'Battery charge current',
+  array_voltage: 'Solar array voltage',
+  array_current: 'Solar array current',
+  target_voltage: 'Charge target voltage',
+  output_power: 'Charging output power',
+  input_power: 'Solar array input power',
+  operating_hours: 'Controller operating hours',
+  dip_switches: 'DIP switch positions',
+  led_state: 'Front-panel LED state',
+  charge_state: 'Charge stage',
+  charge_ah_resettable: 'Charge amp-hours since reset',
+  charge_ah_total: 'Lifetime charge amp-hours',
+  charge_kwh_resettable: 'Charge energy since reset',
+  charge_kwh_total: 'Lifetime charge energy',
+  sweep_max_power: 'Last MPPT sweep maximum power',
+  sweep_vmp: 'Last MPPT sweep Vmp',
+  sweep_voc: 'Last MPPT sweep Voc',
+  daily_charge_ah: 'Charge amp-hours today',
+  daily_charge_wh: 'Generated today',
+  daily_output_power_max: 'Maximum charging power today',
+  daily_absorption_seconds: 'Time in Absorption today',
+  daily_equalize_seconds: 'Time in Equalize today',
+  daily_float_seconds: 'Time in Float today',
+  rts_temp: 'Remote battery temperature sensor',
+  heatsink_temp: 'Controller heatsink temperature',
+  battery_temp: 'Battery regulation temperature',
+}
+
+const WORD_LABELS: Record<string, string> = {
+  ah: 'Ah',
+  kwh: 'kWh',
+  wh: 'Wh',
+  mppt: 'MPPT',
+  rts: 'RTS',
+  dip: 'DIP',
+  led: 'LED',
+  vmp: 'Vmp',
+  voc: 'Voc',
+}
+
+export function isRawRegisterName(name: string): boolean {
+  return /^(holding|input)_0x[0-9a-f]{4}$/i.test(name)
+}
+
+export function plainRegisterLabel(name: string): string {
+  const override = REGISTER_LABEL_OVERRIDES[name.toLowerCase()]
+  if (override) return override
+  const raw = /^(holding|input)_0x([0-9a-f]{4})$/i.exec(name)
+  if (raw) return `Unmapped ${raw[1].toLowerCase()} register 0x${raw[2].toUpperCase()}`
+
+  const words = name.split('_').filter(Boolean)
+  const text = words
+    .map((word) => WORD_LABELS[word.toLowerCase()] ?? word.toLowerCase())
+    .join(' ')
+  return text ? text[0].toUpperCase() + text.slice(1) : name
 }
 
 export function flattenRegisterDefinitions(input: unknown): FlatRegisterDefinition[] {
@@ -231,6 +295,7 @@ export function flattenRegisterDefinitions(input: unknown): FlatRegisterDefiniti
         name,
         address: typeof record.address === 'number' ? record.address : undefined,
         function: typeof record.function === 'string' ? record.function : undefined,
+        words: typeof record.words === 'number' ? record.words : 1,
         description: typeof record.description === 'string' ? record.description : undefined,
         unit: typeof record.unit === 'string' ? record.unit : undefined,
         scale: record.scale,
@@ -253,6 +318,32 @@ export function flattenRegisterDefinitions(input: unknown): FlatRegisterDefiniti
   return [...new Map(output.map((item) => [item.name, item])).values()].sort((a, b) => {
     if (a.address !== undefined && b.address !== undefined) return a.address - b.address
     return a.name.localeCompare(b.name)
+  })
+}
+
+export function semanticRegisterValues(
+  values: RegisterValue[],
+  definitions: FlatRegisterDefinition[],
+): RegisterValue[] {
+  const documentedAddresses = new Set<string>()
+  definitions.forEach((definition) => {
+    if (definition.address === undefined) return
+    const fn = definition.function ?? 'holding'
+    for (let offset = 0; offset < (definition.words ?? 1); offset += 1) {
+      documentedAddresses.add(`${fn}:${definition.address + offset}`)
+    }
+  })
+
+  const namedAddresses = new Set(
+    values
+      .filter((value) => !isRawRegisterName(value.register_name))
+      .map((value) => `${value.function}:${value.address}`),
+  )
+
+  return values.filter((value) => {
+    if (!isRawRegisterName(value.register_name)) return true
+    const key = `${value.function}:${value.address}`
+    return !documentedAddresses.has(key) && !namedAddresses.has(key)
   })
 }
 
