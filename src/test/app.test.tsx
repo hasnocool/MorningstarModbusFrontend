@@ -9,6 +9,6 @@ describe('Morningstar operations shell', () => {
     expect(screen.getByText('Morningstar')).toBeInTheDocument()
     expect(await screen.findByText('No active controller selected')).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument()
-    expect(screen.getByText('Controllers')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Controllers' })).toBeInTheDocument()
   })
 })
