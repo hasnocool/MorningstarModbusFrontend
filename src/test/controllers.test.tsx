@@ -125,9 +125,8 @@ describe('controller inventory', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'Controllers' })).toBeInTheDocument()
-    expect(screen.getByText('TS-MPPT-60')).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 2, name: 'TS-MPPT-60' })).toHaveLength(1)
     expect(screen.getByText('Serial TS123456')).toBeInTheDocument()
-    expect(screen.getByText('Controllers').closest('div')).toHaveTextContent('1')
     expect(screen.getByText('Active connections').closest('div')).toHaveTextContent('1')
     expect(screen.getByText('Known connections').closest('div')).toHaveTextContent('3')
     expect(await screen.findByText('2,490 Wh')).toBeInTheDocument()
