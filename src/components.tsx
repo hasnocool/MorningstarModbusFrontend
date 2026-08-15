@@ -141,6 +141,7 @@ export function PowerFlow({ sample }: { sample?: LatestSample }) {
   const inputPower = metric(sample, 'inputPower')
   const outputPower = metric(sample, 'outputPower')
   const batteryVoltage = metric(sample, 'batteryVoltage')
+  const batterySenseVoltage = metric(sample, 'batterySenseVoltage')
   const chargeCurrent = metric(sample, 'chargeCurrent')
   const chargeState = metric(sample, 'chargeState')
 
@@ -174,7 +175,9 @@ export function PowerFlow({ sample }: { sample?: LatestSample }) {
         <BatteryCharging aria-hidden="true" />
         <strong>Battery</strong>
         <span>{formatValue(valueOf(batteryVoltage), batteryVoltage?.unit)}</span>
-        <small>charging bus</small>
+        <small>
+          sense {formatValue(valueOf(batterySenseVoltage), batterySenseVoltage?.unit)}
+        </small>
       </div>
     </div>
   )
