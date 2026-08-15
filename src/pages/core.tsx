@@ -9,7 +9,14 @@ import {
   Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useDevices, useHistory, useHistorySummary, useIntelligence, useLatest } from '../api'
+import {
+  useDevices,
+  useHistory,
+  useHistorySummary,
+  useIntelligence,
+  useLatest,
+  useRegisterMap,
+} from '../api'
 import {
   DataFreshness,
   DeviceHeadline,
@@ -25,12 +32,15 @@ import {
 } from '../components'
 import {
   encodeDeviceId,
+  flattenRegisterDefinitions,
   formatBytes,
   formatDuration,
   formatRelativeTime,
   formatValue,
   metric,
+  plainRegisterLabel,
   rangeForPreset,
+  semanticRegisterValues,
   valueOf,
 } from '../lib'
 import { useDeviceRoute } from '../app'
@@ -206,7 +216,7 @@ export function OverviewPage() {
       <div className="two-column">
         <Panel
           eyebrow="24-hour trend"
-          title={batteryVoltage?.register_name || 'Battery voltage'}
+          title={batteryVoltage ? plainRegisterLabel(batteryVoltage.register_name) : 'Battery voltage'}
           className="trend-panel"
         >
           <Sparkline values={sparkValues} label="Battery voltage 24-hour trend" />
@@ -282,6 +292,7 @@ export function OverviewPage() {
 export function LivePage() {
   const { deviceId } = useDeviceRoute()
   const latest = useLatest(deviceId)
+  const registerMap = useRegisterMap(deviceId)
   const devices = useDevices()
   const device = devices.data?.find((item) => item.id === deviceId)
 
@@ -289,7 +300,11 @@ export function LivePage() {
   if (latest.isLoading) return <LoadingState label="Loading live register snapshot…" />
   if (latest.isError || !latest.data) return <ErrorState title="Live telemetry unavailable" />
 
-  const values = [...latest.data.values].sort((a, b) => a.address - b.address)
+  const definitions = flattenRegisterDefinitions(registerMap.data)
+  const definitionByName = new Map(definitions.map((item) => [item.name, item]))
+  const values = semanticRegisterValues(latest.data.values, definitions).sort(
+    (a, b) => a.address - b.address,
+  )
 
   return (
     <div className="page">
@@ -298,8 +313,8 @@ export function LivePage() {
         <span className="eyebrow">Engineering snapshot</span>
         <h1>Live telemetry</h1>
         <p>
-          Every decoded value in the latest persisted poll. The browser refreshes independently from the
-          controller polling cadence.
+          Documented values use Morningstar catalog names and descriptions. Raw transport rows remain
+          visible only for addresses that are not mapped by the active device profile.
         </p>
       </div>
       <DataFreshness sample={latest.data} />
@@ -327,7 +342,7 @@ export function LivePage() {
         />
       </div>
 
-      <Panel eyebrow="Latest poll" title={`${values.length} register observations`}>
+      <Panel eyebrow="Latest poll" title={`${values.length} semantic register observations`}>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -338,19 +353,28 @@ export function LivePage() {
                 <th>Decoded</th>
                 <th>Raw</th>
                 <th>Unit</th>
+                <th>Description</th>
               </tr>
             </thead>
             <tbody>
-              {values.map((register) => (
-                <tr key={register.register_name}>
-                  <td><code>{register.register_name}</code></td>
-                  <td><code>0x{register.address.toString(16).padStart(4, '0').toUpperCase()}</code></td>
-                  <td>{register.function}</td>
-                  <td className="numeric-cell">{formatValue(valueOf(register))}</td>
-                  <td><code>{JSON.stringify(register.raw ?? register.raw_json ?? null)}</code></td>
-                  <td>{register.unit || '—'}</td>
-                </tr>
-              ))}
+              {values.map((register) => {
+                const definition = definitionByName.get(register.register_name)
+                return (
+                  <tr key={`${register.register_name}-${register.address}`}>
+                    <td>
+                      <strong>{plainRegisterLabel(register.register_name)}</strong>
+                      <br />
+                      <code>{register.register_name}</code>
+                    </td>
+                    <td><code>0x{register.address.toString(16).padStart(4, '0').toUpperCase()}</code></td>
+                    <td>{register.function}</td>
+                    <td className="numeric-cell">{formatValue(valueOf(register), register.unit)}</td>
+                    <td><code>{JSON.stringify(register.raw ?? register.raw_json ?? null)}</code></td>
+                    <td>{register.unit || '—'}</td>
+                    <td>{definition?.description || 'Raw address not described by the active catalog.'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
