@@ -109,6 +109,8 @@ export function OverviewPage() {
   const intelligence = useIntelligence(route.deviceId)
   const summary = useHistorySummary(route.deviceId)
   const batteryVoltage = metric(latest.data, 'batteryVoltage')
+  const batterySenseVoltage = metric(latest.data, 'batterySenseVoltage')
+  const dailyChargeWh = metric(latest.data, 'dailyChargeWh')
   const chargeState = metric(latest.data, 'chargeState')
   const historyRange = rangeForPreset('24h')
   const history = useHistory(
@@ -162,8 +164,22 @@ export function OverviewPage() {
 
       <div className="metric-grid">
         <MetricCard
+          label="Generated today"
+          register={dailyChargeWh}
+          accent="solar"
+          icon={<Sun size={17} />}
+          helper="controller daily counter"
+        />
+        <MetricCard
+          label="Battery sense voltage"
+          register={batterySenseVoltage}
+          accent="battery"
+          icon={<BatteryCharging size={17} />}
+          helper="remote sense terminals"
+        />
+        <MetricCard
           label="Battery voltage"
-          register={metric(latest.data, 'batteryVoltage')}
+          register={batteryVoltage}
           accent="battery"
           icon={<BatteryCharging size={17} />}
         />
@@ -289,6 +305,18 @@ export function LivePage() {
       <DataFreshness sample={latest.data} />
 
       <div className="metric-grid">
+        <MetricCard
+          label="Generated today"
+          register={metric(latest.data, 'dailyChargeWh')}
+          accent="solar"
+          icon={<Sun size={17} />}
+        />
+        <MetricCard
+          label="Battery sense voltage"
+          register={metric(latest.data, 'batterySenseVoltage')}
+          accent="battery"
+          icon={<BatteryCharging size={17} />}
+        />
         <MetricCard label="Battery voltage" register={metric(latest.data, 'batteryVoltage')} accent="battery" />
         <MetricCard label="Array voltage" register={metric(latest.data, 'arrayVoltage')} accent="solar" />
         <MetricCard label="Charge current" register={metric(latest.data, 'chargeCurrent')} accent="charge" />
@@ -341,6 +369,8 @@ export function DisplayPage() {
   const devices = useDevices()
   const device = devices.data?.find((item) => item.id === deviceId)
   const battery = metric(latest.data, 'batteryVoltage')
+  const batterySense = metric(latest.data, 'batterySenseVoltage')
+  const dailyEnergy = metric(latest.data, 'dailyChargeWh')
   const power = metric(latest.data, 'outputPower') ?? metric(latest.data, 'inputPower')
   const current = metric(latest.data, 'chargeCurrent')
   const state = metric(latest.data, 'chargeState')
@@ -355,6 +385,14 @@ export function DisplayPage() {
         <StatusBadge status={device?.status} />
       </header>
       <div className="display-metrics">
+        <div>
+          <span>Generated today</span>
+          <strong>{formatValue(valueOf(dailyEnergy), dailyEnergy?.unit)}</strong>
+        </div>
+        <div>
+          <span>Battery sense</span>
+          <strong>{formatValue(valueOf(batterySense), batterySense?.unit)}</strong>
+        </div>
         <div>
           <span>Battery</span>
           <strong>{formatValue(valueOf(battery), battery?.unit)}</strong>
