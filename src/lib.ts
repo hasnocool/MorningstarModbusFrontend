@@ -271,6 +271,31 @@ export function flattenRegisterDefinitions(input: unknown): FlatRegisterDefiniti
     seen.add(value)
 
     if (Array.isArray(value)) {
+      if (keyHint === 'reserved_ranges') {
+        value.forEach((item) => {
+          if (!item || typeof item !== 'object') return
+          const record = item as Record<string, unknown>
+          if (typeof record.address !== 'number') return
+          const fn = typeof record.function === 'string' ? record.function : 'holding'
+          const count =
+            typeof record.count === 'number' ? Math.max(1, Math.trunc(record.count)) : 1
+          for (let offset = 0; offset < count; offset += 1) {
+            const address = record.address + offset
+            output.push({
+              name: `__reserved_${fn}_0x${address.toString(16).padStart(4, '0')}`,
+              address,
+              function: fn,
+              words: 1,
+              description:
+                typeof record.description === 'string'
+                  ? record.description
+                  : 'Manufacturer-reserved register.',
+              raw: { ...record, reserved: true },
+            })
+          }
+        })
+        return
+      }
       value.forEach((item) => visit(item))
       return
     }

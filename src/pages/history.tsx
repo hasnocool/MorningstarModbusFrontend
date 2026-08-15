@@ -17,9 +17,9 @@ import {
   formatValue,
   plainRegisterLabel,
   rangeForPreset,
-  semanticRegisterValues,
   valueOf,
 } from '../lib'
+import { semanticRegisterValuesForMap } from '../register-semantics'
 
 registerECharts([
   LineChart,
@@ -211,10 +211,13 @@ export default function HistoryPage() {
   )
   const available = useMemo(
     () =>
-      semanticRegisterValues(latest.data?.values ?? [], definitions).sort(
-        (a, b) => a.address - b.address,
-      ),
-    [definitions, latest.data?.values],
+      semanticRegisterValuesForMap(
+        latest.data?.values ?? [],
+        definitions,
+        registerMap.data,
+        latest.data?.profile,
+      ).sort((a, b) => a.address - b.address),
+    [definitions, latest.data?.profile, latest.data?.values, registerMap.data],
   )
   const defaultNames = useMemo(() => {
     const priorities = [
@@ -308,7 +311,8 @@ export default function HistoryPage() {
       <div className="history-layout">
         <Panel eyebrow="Series" title="Registers" className="series-picker">
           <p className="muted">
-            Choose up to eight documented series. Raw aliases are only shown for unmapped addresses.
+            Choose up to eight semantic series. Manufacturer-reserved words are hidden; raw aliases
+            appear only for genuinely unknown addresses.
           </p>
           <div className="series-list">
             {available.map((register) => (
