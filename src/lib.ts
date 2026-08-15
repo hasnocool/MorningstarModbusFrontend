@@ -66,6 +66,10 @@ export const TELEMETRY_CANDIDATES = {
     names: ['battery_voltage', 'battery_terminal_voltage', 'voltage_battery', 'vb'],
     fuzzy: ['battery', 'voltage'],
   },
+  batterySenseVoltage: {
+    names: ['battery_sense_voltage', 'battery_remote_sense_voltage', 'sense_voltage'],
+    fuzzy: ['battery', 'sense', 'voltage'],
+  },
   arrayVoltage: {
     names: ['array_voltage', 'solar_voltage', 'pv_voltage', 'va'],
     fuzzy: ['array', 'voltage'],
@@ -85,6 +89,10 @@ export const TELEMETRY_CANDIDATES = {
   inputPower: {
     names: ['input_power', 'array_power', 'solar_power', 'power_in'],
     fuzzy: ['input', 'power'],
+  },
+  dailyChargeWh: {
+    names: ['daily_charge_wh', 'daily_energy_wh', 'today_charge_wh', 'today_energy_wh'],
+    fuzzy: ['daily', 'wh'],
   },
   chargeState: {
     names: ['charge_state', 'charge_stage', 'charging_state'],
