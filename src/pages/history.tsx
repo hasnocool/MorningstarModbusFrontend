@@ -1,10 +1,27 @@
-import * as echarts from 'echarts'
+import { LineChart } from 'echarts/charts'
+import {
+  DataZoomComponent,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+} from 'echarts/components'
+import { init, use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BarChart3, Clock3, Download, Layers3, RotateCcw } from 'lucide-react'
 import { useDeviceRoute } from '../app'
 import { ApiError, useHistory, useLatest, useRegisterStats } from '../api'
 import { ErrorState, LoadingState, Panel, SummaryStat } from '../components'
 import { formatValue, rangeForPreset, valueOf } from '../lib'
+
+use([
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  DataZoomComponent,
+  CanvasRenderer,
+])
 
 const PRESETS = ['1h', '6h', '24h', '7d', '30d']
 const RESOLUTIONS = ['auto', 'raw', '1m', '5m', '15m', '1h', '1d']
@@ -23,7 +40,7 @@ function HistoryChart({
 
   useEffect(() => {
     if (!ref.current) return
-    const chart = echarts.init(ref.current)
+    const chart = init(ref.current)
     const numeric = series.filter((item) => item.kind !== 'text')
     const state = series.filter((item) => item.kind === 'text')
 
