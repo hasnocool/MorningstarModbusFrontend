@@ -8,6 +8,7 @@ export const handlers = [
       version: '0.3.0-test',
     }),
   ),
+  http.get('/api/v1/controllers', () => HttpResponse.json([])),
   http.get('/api/v1/devices', () => HttpResponse.json([])),
 ]
 
