@@ -33,6 +33,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { useDevices, useHealth } from './api'
+import { useControllers } from './controller-api'
 import { LoadingState, StatusBadge } from './components'
 import { applyTheme, decodeDeviceId, encodeDeviceId, loadTheme, type Theme } from './lib'
 import {
@@ -72,16 +73,16 @@ export function useDeviceRoute(): DeviceRouteContext {
 }
 
 function DeviceRedirect() {
-  const devices = useDevices()
-  if (devices.isLoading) return <LoadingState />
-  const first = devices.data?.[0]
+  const controllers = useControllers()
+  if (controllers.isLoading) return <LoadingState />
+  const first = controllers.data?.[0]
   if (!first) return <OverviewPage />
-  return <Navigate to={`/devices/${encodeDeviceId(first.id)}/overview`} replace />
+  return <Navigate to={`/devices/${encodeDeviceId(first.current_device_id)}/overview`} replace />
 }
 
 const globalLinks = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
-  { to: '/devices', label: 'Devices', icon: Boxes },
+  { to: '/devices', label: 'Controllers', icon: Boxes },
   { to: '/catalog', label: 'Catalog', icon: BookOpenText },
 ]
 
@@ -98,6 +99,7 @@ const deviceLinks = [
 function AppShell({ children }: PropsWithChildren) {
   const health = useHealth()
   const devices = useDevices()
+  const controllers = useControllers()
   const location = useLocation()
   const deviceKey = location.pathname.match(/^\/devices\/([^/]+)/)?.[1]
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
@@ -135,7 +137,7 @@ function AppShell({ children }: PropsWithChildren) {
 
           {deviceKey && (
             <>
-              <div className="nav-group-label">Active device</div>
+              <div className="nav-group-label">Active controller</div>
               {deviceLinks.map(({ suffix, label, icon: Icon }) => (
                 <NavLink
                   key={suffix}
@@ -165,8 +167,8 @@ function AppShell({ children }: PropsWithChildren) {
             />
           </div>
           <div>
-            <span>Devices</span>
-            <strong>{devices.data?.length ?? 0}</strong>
+            <span>Controllers</span>
+            <strong>{controllers.data?.length ?? 0}</strong>
           </div>
         </div>
       </aside>
@@ -179,7 +181,9 @@ function AppShell({ children }: PropsWithChildren) {
                 ? currentDevice.product_code || currentDevice.profile
                 : location.pathname === '/catalog'
                   ? 'Device catalog'
-                  : 'System overview'}
+                  : location.pathname === '/devices'
+                    ? 'Controller inventory'
+                    : 'System overview'}
             </span>
             {currentDevice && <StatusBadge status={currentDevice.status} />}
           </div>
