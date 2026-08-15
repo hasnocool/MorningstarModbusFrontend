@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RegisterValue } from '../api'
-import { flattenRegisterDefinitions } from '../lib'
+import { flattenRegisterDefinitions, semanticRegisterValues } from '../lib'
 import {
   reservedRegisterRanges,
   semanticRegisterValuesForMap,
@@ -46,6 +46,19 @@ describe('reserved register classification', () => {
     ).toEqual(['holding_0x0060', 'faults'])
   })
 
+  it('lets the shared live-page filter suppress published reserved words', () => {
+    const registerMap = {
+      profile: 'tristar_mppt',
+      reserved_ranges: [{ address: 0x002d, count: 1, function: 'holding' }],
+      registers: [{ name: 'faults', address: 0x002c, function: 'holding' }],
+    }
+    const definitions = flattenRegisterDefinitions(registerMap)
+
+    expect(semanticRegisterValues([raw(0x002d), raw(0x0060)], definitions).map((item) => item.address)).toEqual([
+      0x0060,
+    ])
+  })
+
   it('falls back to the documented TriStar MPPT v11 reserved spans for older APIs', () => {
     const registerMap = {
       profile: 'tristar_mppt',
@@ -53,7 +66,16 @@ describe('reserved register classification', () => {
     }
     const ranges = reservedRegisterRanges(registerMap, 'tristar_mppt')
     const definitions = flattenRegisterDefinitions(registerMap)
-    const values = [raw(0x0005), raw(0x0017), raw(0x002d), raw(0x003f), raw(0x004a), raw(0xe0c4), raw(0xe0cb), raw(0x0060)]
+    const values = [
+      raw(0x0005),
+      raw(0x0017),
+      raw(0x002d),
+      raw(0x003f),
+      raw(0x004a),
+      raw(0xe0c4),
+      raw(0xe0cb),
+      raw(0x0060),
+    ]
 
     expect(ranges).toHaveLength(5)
     expect(
