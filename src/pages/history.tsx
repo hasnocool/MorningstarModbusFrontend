@@ -5,7 +5,7 @@ import {
   LegendComponent,
   TooltipComponent,
 } from 'echarts/components'
-import { init, use } from 'echarts/core'
+import { init, use as registerECharts } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BarChart3, Clock3, Download, Layers3, RotateCcw } from 'lucide-react'
@@ -14,7 +14,7 @@ import { ApiError, useHistory, useLatest, useRegisterStats } from '../api'
 import { ErrorState, LoadingState, Panel, SummaryStat } from '../components'
 import { formatValue, rangeForPreset, valueOf } from '../lib'
 
-use([
+registerECharts([
   LineChart,
   GridComponent,
   TooltipComponent,
