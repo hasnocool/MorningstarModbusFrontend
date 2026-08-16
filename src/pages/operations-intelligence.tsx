@@ -6,7 +6,6 @@ import {
   History,
   Radio,
   ShieldCheck,
-  Sun,
   TriangleAlert,
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
@@ -95,12 +94,15 @@ function IncidentCard({
       ? `${formatValue(incident.expected_low, incident.unit)} – ${formatValue(incident.expected_high, incident.unit)}`
       : null
   return (
-    <article className={`incident-card incident-${incident.severity}`}>
+    <article className={`incident-card incident-${incident.severity} incident-${incident.state}`}>
       <div className="incident-card-head">
         <div>
           <div className="incident-badges">
             <StatusBadge status={incident.severity} />
-            <StatusBadge status={incident.state === 'active' ? 'warning' : 'online'} label={incident.state} />
+            <StatusBadge
+              status={incident.state === 'active' ? 'warning' : 'online'}
+              label={incident.state}
+            />
             <span>{incident.confidence} confidence</span>
           </div>
           <h3>{incident.title}</h3>
@@ -189,7 +191,10 @@ function BaselinePanel({ baseline }: { baseline?: SolarBaseline }) {
       <div className="baseline-current">
         <span>Current solar input</span>
         <strong>{formatValue(baseline.current_value, baseline.unit)}</strong>
-        <StatusBadge status={ready ? 'online' : 'warning'} label={baseline.status.replace(/_/g, ' ')} />
+        <StatusBadge
+          status={ready ? 'online' : 'warning'}
+          label={baseline.status.replace(/_/g, ' ')}
+        />
       </div>
       <div className="baseline-band">
         <div>
@@ -206,7 +211,8 @@ function BaselinePanel({ baseline }: { baseline?: SolarBaseline }) {
         </div>
       </div>
       <p>
-        {baseline.comparable_days ?? 0} comparable prior day(s) · {baseline.confidence || 'low'} confidence ·{' '}
+        {baseline.comparable_days ?? 0} comparable prior day(s) · {baseline.confidence || 'low'}
+        {' confidence · '}
         {baseline.provenance || 'local history'}
       </p>
     </div>
@@ -245,16 +251,20 @@ function ChargeCycleCard({
         </div>
       </div>
       <div className="stage-sequence">
-        {(cycle.stage_sequence ?? []).length
-          ? cycle.stage_sequence?.map((stage, index) => (
-              <span key={`${stage}-${index}`}>{stage}</span>
-            ))
-          : <small>No charge-stage transitions are available.</small>}
+        {(cycle.stage_sequence ?? []).length ? (
+          cycle.stage_sequence?.map((stage, index) => (
+            <span key={`${stage}-${index}`}>{stage}</span>
+          ))
+        ) : (
+          <small>No charge-stage transitions are available.</small>
+        )}
       </div>
       {!!durations.length && (
         <div className="charge-duration-list">
           {durations.map(([stage, seconds]) => (
-            <span key={stage}>{stage}: {formatDuration(seconds)}</span>
+            <span key={stage}>
+              {stage}: {formatDuration(seconds)}
+            </span>
           ))}
         </div>
       )}
@@ -276,10 +286,13 @@ export function OperationsIntelligencePage() {
     return <NoIntelligenceSystem loading={systems.isLoading} error={systems.isError} />
   }
 
-  const controllerNames = new Map(
+  const controllerNames = new Map<string, string>(
     (controllers.data ?? []).map((controller) => [
       controller.controller_uid,
-      controller.model || controller.product_code || controller.profile || controller.controller_uid,
+      controller.model ||
+        controller.product_code ||
+        controller.profile ||
+        controller.controller_uid,
     ]),
   )
   const activeIncidents = active.data ?? []
@@ -311,10 +324,30 @@ export function OperationsIntelligencePage() {
       )}
 
       <div className="site-summary-grid">
-        <SummaryStat label="Health score" value={health.data?.score ?? '—'} helper="transparent / 100" icon={<ShieldCheck size={18} />} />
-        <SummaryStat label="Active incidents" value={activeIncidents.length} helper={`${critical} critical`} icon={<TriangleAlert size={18} />} />
-        <SummaryStat label="Warnings" value={warning} helper="active evidence-backed warnings" icon={<Activity size={18} />} />
-        <SummaryStat label="Comparable days" value={baselines.data?.solar_input_power.comparable_days ?? 0} helper="solar baseline evidence" icon={<History size={18} />} />
+        <SummaryStat
+          label="Health score"
+          value={health.data?.score ?? '—'}
+          helper="transparent / 100"
+          icon={<ShieldCheck size={18} />}
+        />
+        <SummaryStat
+          label="Active incidents"
+          value={activeIncidents.length}
+          helper={`${critical} critical`}
+          icon={<TriangleAlert size={18} />}
+        />
+        <SummaryStat
+          label="Warnings"
+          value={warning}
+          helper="active evidence-backed warnings"
+          icon={<Activity size={18} />}
+        />
+        <SummaryStat
+          label="Comparable days"
+          value={baselines.data?.solar_input_power.comparable_days ?? 0}
+          helper="solar baseline evidence"
+          icon={<History size={18} />}
+        />
       </div>
 
       <Panel eyebrow="Decomposable score" title="Site health">
@@ -325,7 +358,11 @@ export function OperationsIntelligencePage() {
         {active.isLoading ? (
           <LoadingState />
         ) : (
-          <IncidentList incidents={activeIncidents} controllerNames={controllerNames} emptyTitle="No active incidents" />
+          <IncidentList
+            incidents={activeIncidents}
+            controllerNames={controllerNames}
+            emptyTitle="No active incidents"
+          />
         )}
       </Panel>
 
@@ -348,7 +385,9 @@ export function OperationsIntelligencePage() {
                 <ChargeCycleCard
                   key={cycle.controller_uid}
                   cycle={cycle}
-                  controllerLabel={controllerNames.get(cycle.controller_uid) || cycle.controller_uid}
+                  controllerLabel={
+                    controllerNames.get(cycle.controller_uid) || cycle.controller_uid
+                  }
                 />
               ))}
             </div>
@@ -360,7 +399,11 @@ export function OperationsIntelligencePage() {
         {resolved.isLoading ? (
           <LoadingState />
         ) : (
-          <IncidentList incidents={resolved.data ?? []} controllerNames={controllerNames} emptyTitle="No resolved incidents yet" />
+          <IncidentList
+            incidents={resolved.data ?? []}
+            controllerNames={controllerNames}
+            emptyTitle="No resolved incidents yet"
+          />
         )}
       </Panel>
     </div>
@@ -375,8 +418,13 @@ export function ControllerOperationsIntelligencePage() {
   const active = useControllerIncidents(controllerUid, 'active', 100)
   const resolved = useControllerIncidents(controllerUid, 'resolved', 20)
   const cycle = useControllerChargeCycle(controllerUid)
-  const label = controller?.model || controller?.product_code || controller?.profile || controllerUid || 'Controller'
-  const names = new Map(controllerUid ? [[controllerUid, label]] : [])
+  const label =
+    controller?.model ||
+    controller?.product_code ||
+    controller?.profile ||
+    controllerUid ||
+    'Controller'
+  const names = new Map<string, string>(controllerUid ? [[controllerUid, label]] : [])
 
   if (!controllerUid || (!controller && !controllers.isLoading)) {
     return <ErrorState title="Physical controller not found" />
@@ -394,10 +442,30 @@ export function ControllerOperationsIntelligencePage() {
       </div>
 
       <div className="site-summary-grid">
-        <SummaryStat label="Health score" value={health.data?.score ?? '—'} helper="controller scope" icon={<Gauge size={18} />} />
-        <SummaryStat label="Active incidents" value={active.data?.length ?? '—'} helper="current findings" icon={<TriangleAlert size={18} />} />
-        <SummaryStat label="Absorption entries" value={cycle.data?.absorption_entries ?? '—'} helper="last 24 hours" icon={<BatteryCharging size={18} />} />
-        <SummaryStat label="Stage transitions" value={cycle.data?.transition_count ?? '—'} helper="last 24 hours" icon={<Radio size={18} />} />
+        <SummaryStat
+          label="Health score"
+          value={health.data?.score ?? '—'}
+          helper="controller scope"
+          icon={<Gauge size={18} />}
+        />
+        <SummaryStat
+          label="Active incidents"
+          value={active.data?.length ?? '—'}
+          helper="current findings"
+          icon={<TriangleAlert size={18} />}
+        />
+        <SummaryStat
+          label="Absorption entries"
+          value={cycle.data?.absorption_entries ?? '—'}
+          helper="last 24 hours"
+          icon={<BatteryCharging size={18} />}
+        />
+        <SummaryStat
+          label="Stage transitions"
+          value={cycle.data?.transition_count ?? '—'}
+          helper="last 24 hours"
+          icon={<Radio size={18} />}
+        />
       </div>
 
       <Panel eyebrow="Controller score" title="Evidence categories">
@@ -405,7 +473,15 @@ export function ControllerOperationsIntelligencePage() {
       </Panel>
 
       <Panel eyebrow="Needs attention" title="Active controller incidents">
-        {active.isLoading ? <LoadingState /> : <IncidentList incidents={active.data ?? []} controllerNames={names} emptyTitle="No active incidents" />}
+        {active.isLoading ? (
+          <LoadingState />
+        ) : (
+          <IncidentList
+            incidents={active.data ?? []}
+            controllerNames={names}
+            emptyTitle="No active incidents"
+          />
+        )}
       </Panel>
 
       <Panel eyebrow="Charge state" title="24-hour charge cycle">
@@ -419,7 +495,15 @@ export function ControllerOperationsIntelligencePage() {
       </Panel>
 
       <Panel eyebrow="History" title="Resolved controller incidents">
-        {resolved.isLoading ? <LoadingState /> : <IncidentList incidents={resolved.data ?? []} controllerNames={names} emptyTitle="No resolved incidents yet" />}
+        {resolved.isLoading ? (
+          <LoadingState />
+        ) : (
+          <IncidentList
+            incidents={resolved.data ?? []}
+            controllerNames={names}
+            emptyTitle="No resolved incidents yet"
+          />
+        )}
       </Panel>
 
       <Link className="button-link" to={`/controllers/${controllerUid}/overview`}>
