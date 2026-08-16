@@ -48,9 +48,12 @@ function formatPower(value?: number | null): string {
   return `${value.toFixed(value >= 100 ? 0 : 1)} W`
 }
 
-function formatPercent(value?: number | null, *, ratio = false): string {
+function formatPercent(
+  value?: number | null,
+  options: { ratio?: boolean } = {},
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
-  const percent = ratio ? value * 100 : value
+  const percent = options.ratio ? value * 100 : value
   return `${percent.toFixed(0)}%`
 }
 
@@ -67,37 +70,17 @@ function ForecastChart({ solar }: { solar: SolarForecast }) {
   useEffect(() => {
     if (!ref.current) return
     const chart = init(ref.current)
-    const option = {
+    chart.setOption({
       animation: false,
       backgroundColor: 'transparent',
       textStyle: {
         color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary'),
       },
-      tooltip: {
-        trigger: 'axis',
-        confine: true,
-        backgroundColor: 'rgba(10, 14, 20, 0.96)',
-        borderColor: 'rgba(148, 163, 184, 0.25)',
-        textStyle: { color: '#f8fafc' },
-      },
-      legend: {
-        type: 'scroll',
-        top: 0,
-        textStyle: { color: 'inherit' },
-      },
+      tooltip: { trigger: 'axis', confine: true },
+      legend: { type: 'scroll', top: 0, textStyle: { color: 'inherit' } },
       grid: { left: 58, right: 24, top: 44, bottom: 42 },
-      xAxis: {
-        type: 'time',
-        axisLine: { lineStyle: { color: 'rgba(148,163,184,.25)' } },
-        splitLine: { show: true, lineStyle: { color: 'rgba(148,163,184,.08)' } },
-      },
-      yAxis: {
-        type: 'value',
-        min: 0,
-        name: 'W',
-        axisLine: { lineStyle: { color: 'rgba(148,163,184,.25)' } },
-        splitLine: { lineStyle: { color: 'rgba(148,163,184,.08)' } },
-      },
+      xAxis: { type: 'time' },
+      yAxis: { type: 'value', min: 0, name: 'W' },
       series: [
         {
           name: 'Observed',
@@ -132,9 +115,7 @@ function ForecastChart({ solar }: { solar: SolarForecast }) {
           data: solar.curve.map((point) => [point.at, point.p90_w ?? null]),
         },
       ],
-    }
-
-    chart.setOption(option as any)
+    })
     const observer = new ResizeObserver(() => chart.resize())
     observer.observe(ref.current)
     return () => {
@@ -160,13 +141,15 @@ export default function ForecastPage() {
   const accuracy = useForecastAccuracy(systemUid)
   const controllers = useControllers()
   const streamState = useSystemStream(systemUid)
-
   const labels = useMemo(
     () =>
       new Map(
         (controllers.data ?? []).map((controller) => [
           controller.controller_uid,
-          controller.model || controller.product_code || controller.profile || controller.controller_uid,
+          controller.model ||
+            controller.product_code ||
+            controller.profile ||
+            controller.controller_uid,
         ]),
       ),
     [controllers.data],
@@ -177,8 +160,8 @@ export default function ForecastPage() {
   if (!systemUid) {
     return (
       <EmptyState title="No site is configured">
-        Predictive operations becomes available after MorningstarModbusAPI enrolls a site and begins
-        retaining normalized history.
+        Predictive operations becomes available after the backend begins retaining normalized site
+        history.
       </EmptyState>
     )
   }
@@ -187,7 +170,7 @@ export default function ForecastPage() {
     return (
       <ErrorState
         title="Predictive operations unavailable"
-        detail="This frontend requires a MorningstarModbusAPI build with the v0.4 predictive forecast endpoints."
+        detail="This page requires a MorningstarModbusAPI build with predictive forecast endpoints."
       />
     )
   }
@@ -195,12 +178,7 @@ export default function ForecastPage() {
   const payload = forecast.data
   const solar = payload.solar
   const energy = solar.energy
-  const floatProbability = payload.charge.all_controllers_float_probability
-  const expectedFloat = payload.charge.expected_all_controllers_float_at
-  const progressPercent =
-    energy.progress_ratio === null || energy.progress_ratio === undefined
-      ? undefined
-      : Math.max(0, Math.min(200, energy.progress_ratio * 100))
+  const progress = energy.progress_ratio ?? 0
 
   return (
     <div className="page forecast-page">
@@ -209,9 +187,8 @@ export default function ForecastPage() {
           <span className="eyebrow">v0.4 predictive operations</span>
           <h1>Solar day planner</h1>
           <p>
-            See the rest of today's likely solar-production envelope and charging outcome using only
-            locally retained site and controller history. Forecasts show uncertainty and provenance;
-            they never control the hardware.
+            Estimate the rest of today's solar-input envelope and charging outcome from local history.
+            Uncertainty, evidence and provenance stay visible; the frontend never controls hardware.
           </p>
         </div>
         <div className="forecast-heading-status">
@@ -230,8 +207,8 @@ export default function ForecastPage() {
           <div>
             <strong>More history is needed for a calibrated forecast.</strong>
             <span>
-              {solar.training_days} qualifying prior days are currently available. The backend returns
-              insufficient evidence instead of inventing a prediction.
+              {solar.training_days} qualifying prior days are currently available. Insufficient evidence
+              stays explicit instead of becoming a made-up prediction.
             </span>
           </div>
         </div>
@@ -264,29 +241,24 @@ export default function ForecastPage() {
         />
         <SummaryStat
           label="Reach Float"
-          value={formatPercent(floatProbability, { ratio: true })}
+          value={formatPercent(payload.charge.all_controllers_float_probability, { ratio: true })}
           helper="conservative all-controller probability"
           icon={<BatteryCharging size={18} />}
         />
         <SummaryStat
           label="Expected Float"
-          value={formatTime(expectedFloat)}
+          value={formatTime(payload.charge.expected_all_controllers_float_at)}
           helper="latest expected controller completion"
           icon={<BatteryCharging size={18} />}
         />
       </div>
 
-      <Panel
-        eyebrow="Expected vs actual"
-        title="Today's solar-input trajectory"
-        action={<StatusBadge status={solar.confidence} label={`${solar.confidence} confidence`} />}
-      >
+      <Panel eyebrow="Expected vs actual" title="Today's solar-input trajectory">
         {solar.curve.length ? (
           <ForecastChart solar={solar} />
         ) : (
           <EmptyState title="No forecast curve yet">
-            The site needs several sufficiently observed historical days before percentile bands can be
-            calculated.
+            Several sufficiently observed prior days are required before percentile bands are available.
           </EmptyState>
         )}
         <div className="forecast-progress-row">
@@ -295,7 +267,7 @@ export default function ForecastPage() {
             <strong>{formatPercent(energy.progress_ratio, { ratio: true })}</strong>
           </div>
           <div className="forecast-progress-track" aria-label="Progress versus expected solar energy">
-            <span style={{ width: `${Math.min(progressPercent ?? 0, 100)}%` }} />
+            <span style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }} />
           </div>
           <small>
             Expected by now {formatEnergy(energy.expected_so_far_p50_wh)} · observed{' '}
@@ -325,9 +297,7 @@ export default function ForecastPage() {
                     </div>
                     <div>
                       <dt>Evidence</dt>
-                      <dd>
-                        {controller.float_days}/{controller.training_days} prior days reached Float
-                      </dd>
+                      <dd>{controller.float_days}/{controller.training_days} days reached Float</dd>
                     </div>
                     <div>
                       <dt>Confidence</dt>
@@ -378,53 +348,20 @@ export default function ForecastPage() {
         ) : (
           <>
             <div className="forecast-accuracy-grid">
-              <SummaryStat
-                label="Evaluated days"
-                value={accuracy.data.evaluated_days}
-                helper={accuracy.data.status}
-              />
+              <SummaryStat label="Evaluated days" value={accuracy.data.evaluated_days} />
               <SummaryStat
                 label="Median EOD error"
                 value={formatPercent(accuracy.data.median_absolute_error_percent)}
-                helper="P50 absolute percentage error"
               />
               <SummaryStat
                 label="P90 EOD error"
                 value={formatPercent(accuracy.data.p90_absolute_error_percent)}
-                helper="90% of evaluated errors are below this"
               />
               <SummaryStat
                 label="P10–P90 coverage"
                 value={formatPercent(accuracy.data.p10_p90_interval_coverage, { ratio: true })}
-                helper="actual days inside the uncertainty band"
               />
             </div>
-            {accuracy.data.days.length > 0 && (
-              <div className="forecast-accuracy-table-wrap">
-                <table className="forecast-accuracy-table">
-                  <thead>
-                    <tr>
-                      <th>Day</th>
-                      <th>Actual</th>
-                      <th>P50</th>
-                      <th>Error</th>
-                      <th>Inside band</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {accuracy.data.days.slice(-10).reverse().map((day) => (
-                      <tr key={day.day}>
-                        <td>{day.day}</td>
-                        <td>{formatEnergy(day.actual_wh)}</td>
-                        <td>{formatEnergy(day.p50_wh)}</td>
-                        <td>{formatPercent(day.absolute_error_percent)}</td>
-                        <td>{day.inside_p10_p90 ? 'yes' : 'no'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
             <p className="muted forecast-semantics">{accuracy.data.methodology}</p>
           </>
         )}
