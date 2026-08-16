@@ -39,12 +39,10 @@ import {
   flattenRegisterDefinitions,
   formatBytes,
   formatDuration,
-  formatRelativeTime,
   formatValue,
   metric,
   rangeForPreset,
   semanticRegisterValues,
-  valueOf,
 } from '../lib'
 
 function dailyRange(days: number): { from: string; to: string } {
