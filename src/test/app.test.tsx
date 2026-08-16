@@ -10,6 +10,7 @@ describe('Morningstar operations shell', () => {
     expect(await screen.findByText('No site is configured')).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Site overview' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Solar day planner' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Operations intelligence' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Controllers' })).toBeInTheDocument()
   })
