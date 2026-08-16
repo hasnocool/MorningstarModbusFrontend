@@ -33,7 +33,11 @@ import {
   useParams,
 } from 'react-router-dom'
 import { useDevices, useHealth } from './api'
-import { useControllers } from './controller-api'
+import {
+  partitionControllerInventory,
+  preferredController,
+  useControllers,
+} from './controller-api'
 import { LoadingState, StatusBadge } from './components'
 import { applyTheme, decodeDeviceId, encodeDeviceId, loadTheme, type Theme } from './lib'
 import {
@@ -75,7 +79,7 @@ export function useDeviceRoute(): DeviceRouteContext {
 function DeviceRedirect() {
   const controllers = useControllers()
   if (controllers.isLoading) return <LoadingState />
-  const first = controllers.data?.[0]
+  const first = preferredController(controllers.data)
   if (!first) return <OverviewPage />
   return <Navigate to={`/devices/${encodeDeviceId(first.current_device_id)}/overview`} replace />
 }
@@ -110,6 +114,10 @@ function AppShell({ children }: PropsWithChildren) {
     () => devices.data?.find((device) => encodeDeviceId(device.id) === deviceKey),
     [deviceKey, devices.data],
   )
+  const controllerInventory = useMemo(
+    () => partitionControllerInventory(controllers.data),
+    [controllers.data],
+  )
 
   const nextTheme: Theme = theme === 'dark' ? 'light' : theme === 'light' ? 'high-contrast' : 'dark'
 
@@ -129,7 +137,12 @@ function AppShell({ children }: PropsWithChildren) {
         <nav aria-label="Primary navigation">
           <div className="nav-group-label">System</div>
           {globalLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className="nav-link" end={to === '/'}>
+            <NavLink
+              key={to}
+              to={to}
+              className="nav-link"
+              end={to === '/' || to === '/devices'}
+            >
               <Icon size={17} />
               {label}
             </NavLink>
@@ -168,7 +181,7 @@ function AppShell({ children }: PropsWithChildren) {
           </div>
           <div>
             <span>Controllers</span>
-            <strong>{controllers.data?.length ?? 0}</strong>
+            <strong>{controllerInventory.primary.length}</strong>
           </div>
         </div>
       </aside>

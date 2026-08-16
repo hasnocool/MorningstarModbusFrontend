@@ -18,7 +18,11 @@ import {
   useLatest,
   useRegisterMap,
 } from '../api'
-import { useControllers, type ControllerRecord } from '../controller-api'
+import {
+  partitionControllerInventory,
+  useControllers,
+  type ControllerRecord,
+} from '../controller-api'
 import {
   DataFreshness,
   DeviceHeadline,
@@ -55,7 +59,13 @@ function connectionLabel(controller: ControllerRecord) {
   return connection.target
 }
 
-function ControllerCard({ controller }: { controller: ControllerRecord }) {
+function ControllerCard({
+  controller,
+  legacy = false,
+}: {
+  controller: ControllerRecord
+  legacy?: boolean
+}) {
   const latest = useLatest(controller.current_device_id)
   const battery = metric(latest.data, 'batteryVoltage')
   const power = metric(latest.data, 'outputPower') ?? metric(latest.data, 'inputPower')
@@ -70,7 +80,9 @@ function ControllerCard({ controller }: { controller: ControllerRecord }) {
             <Gauge size={22} />
           </div>
           <div>
-            <span className="controller-family">{controller.family || 'Morningstar controller'}</span>
+            <span className="controller-family">
+              {legacy ? 'Unverified legacy connection' : controller.family || 'Morningstar controller'}
+            </span>
             <h2>{controller.model || controller.product_code || controller.profile}</h2>
             <div className="controller-identity-line">
               {controller.serial_number ? (
@@ -109,7 +121,7 @@ function ControllerCard({ controller }: { controller: ControllerRecord }) {
           <Cable size={18} />
         </div>
         <div>
-          <span>Current connection</span>
+          <span>{legacy ? 'Historical connection' : 'Current connection'}</span>
           <strong>{connectionLabel(controller)}</strong>
           <small>
             {controller.current_connection.transport.toUpperCase()} · Modbus ID{' '}
@@ -120,8 +132,9 @@ function ControllerCard({ controller }: { controller: ControllerRecord }) {
 
       {controller.identity_source === 'endpoint' && (
         <div className="inline-warning">
-          Controller serial metadata is not available yet, so this controller is temporarily identified by
-          its connection endpoint.
+          {legacy
+            ? 'This offline record predates stronger controller identification. It is retained as historical endpoint data because the backend cannot safely prove that it belongs to another physical controller.'
+            : 'Controller serial metadata is not available yet, so this active controller is temporarily identified by its connection endpoint.'}
         </div>
       )}
 
@@ -130,7 +143,7 @@ function ControllerCard({ controller }: { controller: ControllerRecord }) {
           className="primary-button controller-open-button"
           to={`/devices/${encodeDeviceId(controller.current_device_id)}/overview`}
         >
-          Open controller
+          {legacy ? 'Open historical data' : 'Open controller'}
         </Link>
         <span>
           {controller.connection_count} known connection{controller.connection_count === 1 ? '' : 's'}
@@ -182,6 +195,7 @@ export function DevicesPage() {
     )
   }
 
+  const { primary, unverifiedLegacy } = partitionControllerInventory(controllers.data)
   const knownConnections = controllers.data.reduce((total, item) => total + item.connection_count, 0)
   const activeConnections = controllers.data.reduce(
     (total, item) => total + item.active_connection_count,
@@ -194,19 +208,24 @@ export function DevicesPage() {
         <span className="eyebrow">Physical controller inventory</span>
         <h1>Controllers</h1>
         <p>
-          One card represents one physical Morningstar controller. USB paths and network endpoints are
-          connection history, not separate controllers.
+          Active or strongly identified Morningstar controllers stay in the primary inventory. Stale
+          endpoint-only records are retained separately so historical telemetry is never merged into the
+          wrong physical controller.
         </p>
       </div>
 
       <div className="controller-inventory-summary">
         <div>
           <span>Controllers</span>
-          <strong>{controllers.data.length}</strong>
+          <strong>{primary.length}</strong>
         </div>
         <div>
           <span>Active connections</span>
           <strong>{activeConnections}</strong>
+        </div>
+        <div>
+          <span>Unverified legacy</span>
+          <strong>{unverifiedLegacy.length}</strong>
         </div>
         <div>
           <span>Known connections</span>
@@ -214,11 +233,37 @@ export function DevicesPage() {
         </div>
       </div>
 
-      <div className="controller-grid">
-        {controllers.data.map((controller) => (
-          <ControllerCard key={controller.controller_id} controller={controller} />
-        ))}
-      </div>
+      {primary.length ? (
+        <div className="controller-grid">
+          {primary.map((controller) => (
+            <ControllerCard key={controller.controller_id} controller={controller} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No active or verified controller identities">
+          Historical endpoint records are still available below, but none are currently active or backed
+          by a controller/USB serial identity.
+        </EmptyState>
+      )}
+
+      {unverifiedLegacy.length > 0 && (
+        <details className="unverified-controller-section">
+          <summary>
+            {unverifiedLegacy.length} unverified legacy record
+            {unverifiedLegacy.length === 1 ? '' : 's'}
+          </summary>
+          <p>
+            These offline endpoint-scoped records predate the stronger identity model. They are hidden from
+            the primary controller count and kept only so older telemetry remains accessible without unsafe
+            automatic identity guesses.
+          </p>
+          <div className="controller-grid">
+            {unverifiedLegacy.map((controller) => (
+              <ControllerCard key={controller.controller_id} controller={controller} legacy />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   )
 }

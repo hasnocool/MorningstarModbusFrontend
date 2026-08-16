@@ -4,7 +4,7 @@
 
 .controller-inventory-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -206,6 +206,39 @@
 .connection-history-row span,
 .connection-history-row time {
   font-size: 0.76rem;
+}
+
+.unverified-controller-section {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-subtle, rgba(148, 163, 184, 0.22));
+  border-radius: 12px;
+  background: var(--surface-panel, rgba(15, 23, 42, 0.4));
+}
+
+.unverified-controller-section > summary {
+  cursor: pointer;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.86rem;
+  font-weight: 600;
+  user-select: none;
+}
+
+.unverified-controller-section > p {
+  margin: 12px 0;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.unverified-controller-section .controller-grid {
+  margin-top: 12px;
+}
+
+@media (max-width: 1000px) {
+  .controller-inventory-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {

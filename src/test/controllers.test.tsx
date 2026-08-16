@@ -128,9 +128,81 @@ describe('controller inventory', () => {
     expect(screen.getAllByRole('heading', { level: 2, name: 'TS-MPPT-60' })).toHaveLength(1)
     expect(screen.getByText('Serial TS123456')).toBeInTheDocument()
     expect(screen.getByText('Active connections').closest('div')).toHaveTextContent('1')
+    expect(screen.getByText('Unverified legacy').closest('div')).toHaveTextContent('0')
     expect(screen.getByText('Known connections').closest('div')).toHaveTextContent('3')
     expect(await screen.findByText('2,490 Wh')).toBeInTheDocument()
     expect(screen.getAllByText('/dev/ttyUSB2').length).toBeGreaterThan(0)
     expect(screen.getByText('3 known connections')).toBeInTheDocument()
+  })
+
+  it('keeps stale endpoint-only identities out of the primary controller inventory', async () => {
+    const now = new Date().toISOString()
+    server.use(
+      http.get('/api/v1/controllers', () =>
+        HttpResponse.json([
+          {
+            controller_id: 'morningstar:tristar_mppt:ts123456',
+            identity_source: 'controller_serial',
+            current_device_id: 'device:tristar_mppt:canonical',
+            status: 'online',
+            product_code: 'TS-MPPT-60',
+            profile: 'tristar_mppt',
+            family: 'TriStar MPPT 150V',
+            model: 'TS-MPPT-60',
+            serial_number: 'TS123456',
+            last_seen: now,
+            connection_count: 1,
+            active_connection_count: 1,
+            current_connection: {
+              device_id: 'device:tristar_mppt:canonical',
+              stable_key: 'serial:vidpid:1a86:7523:/dev/ttyUSB0:unit:1',
+              transport: 'serial',
+              target: '/dev/ttyUSB0',
+              unit_id: 1,
+              status: 'online',
+              role: 'current',
+              last_seen: now,
+            },
+            connections: [],
+          },
+          {
+            controller_id: 'endpoint:serial:vidpid:1a86:7523:/dev/ttyUSB1:unit:1',
+            identity_source: 'endpoint',
+            current_device_id: 'serial:vidpid:1a86:7523:/dev/ttyUSB1:unit:1',
+            status: 'offline',
+            product_code: 'TS-MPPT-60',
+            profile: 'tristar_mppt',
+            model: 'TS-MPPT-60',
+            last_seen: '2026-08-14T14:00:00Z',
+            connection_count: 1,
+            active_connection_count: 0,
+            current_connection: {
+              device_id: 'serial:vidpid:1a86:7523:/dev/ttyUSB1:unit:1',
+              stable_key: 'serial:vidpid:1a86:7523:/dev/ttyUSB1:unit:1',
+              transport: 'serial',
+              target: '/dev/ttyUSB1',
+              unit_id: 1,
+              status: 'offline',
+              role: 'previous',
+              last_seen: '2026-08-14T14:00:00Z',
+            },
+            connections: [],
+          },
+        ]),
+      ),
+      http.get('/api/v1/devices/latest', () => HttpResponse.json(null, { status: 404 })),
+    )
+
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Controllers' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Controllers', { selector: '.controller-inventory-summary span' }).closest('div'),
+    ).toHaveTextContent('1')
+    expect(screen.getByText('Unverified legacy').closest('div')).toHaveTextContent('1')
+
+    const legacySummary = screen.getByText('1 unverified legacy record')
+    expect(legacySummary.closest('details')).not.toHaveAttribute('open')
+    expect(screen.queryByText('Unverified legacy connection')).not.toBeVisible()
   })
 })
