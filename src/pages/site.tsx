@@ -20,6 +20,13 @@ import {
 } from '../components'
 import { formatRelativeTime, formatValue, rangeForPreset } from '../lib'
 import {
+  exactKwhFromWh,
+  hasMetricValue,
+  metricAvailability,
+  metricPresentationLabel,
+  metricPresentationReason,
+} from '../metric-presentation'
+import {
   useSystemComponentGraph,
   useSystemEnergy,
   useSystemEnergyLedger,
@@ -68,6 +75,23 @@ function readingText(reading?: SystemMetricReading, fallbackUnit?: string): stri
 
 function qualityLabel(reading?: SystemMetricReading): string {
   return reading?.quality || reading?.status || 'unknown'
+}
+
+function unavailableValueLabel(reading?: SystemMetricReading): string {
+  switch (metricAvailability(reading)) {
+    case 'unsupported':
+      return 'Not supported'
+    case 'conflict':
+      return 'Conflict'
+    case 'unavailable':
+      return 'Unavailable'
+    case 'available':
+      return readingText(reading)
+  }
+}
+
+function readingFormula(reading?: SystemMetricReading): string | undefined {
+  return typeof reading?.formula === 'string' && reading.formula ? reading.formula : undefined
 }
 
 function useDefaultSystemUid(): {
@@ -124,24 +148,58 @@ function MetricTile({
   )
 }
 
+function ReadingItem({ name, reading }: { name: string; reading: SystemMetricReading }) {
+  const available = metricAvailability(reading) === 'available'
+  const reason = metricPresentationReason(reading)
+  const formula = readingFormula(reading)
+  return (
+    <div className="site-reading" key={name}>
+      <span>{titleize(name)}</span>
+      <strong>{available ? readingText(reading) : unavailableValueLabel(reading)}</strong>
+      <small>
+        {reading.source_metric ? `${reading.source_metric} · ` : ''}
+        {metricPresentationLabel(reading)}
+      </small>
+      {formula && <small>Formula: {formula}</small>}
+      {!available && reason && <small>{reason}</small>}
+    </div>
+  )
+}
+
 function ReadingGrid({ value }: { value: unknown }) {
   const entries = readingEntries(value)
   if (!entries.length) {
-    return <div className="muted">No source-backed values are available for this section.</div>
+    return <div className="muted">No metric definitions are available for this section.</div>
   }
+
+  const available = entries.filter(([, reading]) => metricAvailability(reading) === 'available')
+  const unavailable = entries.filter(([, reading]) => metricAvailability(reading) !== 'available')
+
   return (
-    <div className="site-reading-grid">
-      {entries.map(([name, reading]) => (
-        <div className="site-reading" key={name}>
-          <span>{titleize(name)}</span>
-          <strong>{readingText(reading)}</strong>
-          <small>
-            {reading.source_metric ? `${reading.source_metric} · ` : ''}
-            {qualityLabel(reading)}
-          </small>
+    <>
+      {available.length ? (
+        <div className="site-reading-grid">
+          {available.map(([name, reading]) => (
+            <ReadingItem key={name} name={name} reading={reading} />
+          ))}
         </div>
-      ))}
-    </div>
+      ) : (
+        <div className="muted">No currently observed values are available in this section.</div>
+      )}
+
+      {unavailable.length > 0 && (
+        <details open={!available.length}>
+          <summary>
+            {unavailable.length} additional measurement{unavailable.length === 1 ? '' : 's'} unavailable with current evidence
+          </summary>
+          <div className="site-reading-grid">
+            {unavailable.map(([name, reading]) => (
+              <ReadingItem key={name} name={name} reading={reading} />
+            ))}
+          </div>
+        </details>
+      )}
+    </>
   )
 }
 
@@ -162,6 +220,15 @@ export function SiteOverviewPage() {
   const current = metrics.battery_charge_current_a
   const state = metrics.charge_state
   const dailyEnergy = energyMetrics.daily_charge_wh ?? metrics.daily_charge_wh
+  const primaryNames = new Set([
+    'solar_input_power_w',
+    'charge_output_power_w',
+    'battery_voltage_v',
+    'battery_charge_current_a',
+  ])
+  const additionalMetrics = Object.fromEntries(
+    Object.entries(metrics).filter(([name]) => !primaryNames.has(name)),
+  )
 
   return (
     <div className="page site-page">
@@ -253,6 +320,10 @@ export function SiteOverviewPage() {
         <MetricTile label="Battery voltage" reading={voltage} icon={<BatteryCharging size={17} />} />
         <MetricTile label="Controller charge current" reading={current} icon={<Activity size={17} />} />
       </div>
+
+      <Panel eyebrow="Normalized evidence" title="Additional site metrics">
+        {latest.isLoading ? <LoadingState /> : <ReadingGrid value={additionalMetrics} />}
+      </Panel>
     </div>
   )
 }
@@ -265,6 +336,13 @@ export function SitePowerFlowPage() {
   if (!system.systemUid) return <NoSystemState isLoading={system.isLoading} isError={system.isError} />
 
   const data = power.data ?? {}
+  const sources = asRecord(data.sources)
+  const solarInput = asReading(sources?.solar_input_power_w)
+  const solarSourceRows = Array.isArray(solarInput?.sources) ? solarInput.sources : []
+  const estimatedSolarInput = solarSourceRows.some(
+    (source) => asRecord(source)?.register_name === 'input_power_reported',
+  )
+
   return (
     <div className="page site-page">
       <div className="page-heading site-heading">
@@ -273,7 +351,8 @@ export function SitePowerFlowPage() {
           <h1>Power flow</h1>
           <p>
             Authoritative whole-system measurements are preferred when available. Derived values retain
-            backend quality, source, and conflict semantics.
+            backend quality, source, and conflict semantics. Unsupported hardware is described rather than
+            displayed as broken telemetry.
           </p>
         </div>
         <StatusBadge status={streamState === 'connected' ? 'online' : 'warning'} label={`SSE ${streamState}`} />
@@ -289,9 +368,16 @@ export function SitePowerFlowPage() {
         </Panel>
         <Panel eyebrow="Balance" title="System balance and residuals">
           <ReadingGrid value={data.balance} />
+          {estimatedSolarInput && (
+            <p className="muted">
+              Controller conversion efficiency uses the TriStar controller-reported PV input-power estimate.
+              Morningstar documents that input estimate as lower precision than battery-side output power, so
+              values near 100% should be treated as approximate rather than precision efficiency measurements.
+            </p>
+          )}
         </Panel>
         <Panel eyebrow="Solar" title="Generation path">
-          <ReadingGrid value={data.solar ?? data.generation ?? data.controllers} />
+          <ReadingGrid value={data.sources ?? data.solar ?? data.generation ?? data.controllers} />
         </Panel>
       </div>
     </div>
@@ -306,26 +392,40 @@ export function SiteEnergyPage() {
   if (!system.systemUid) return <NoSystemState isLoading={system.isLoading} isError={system.isError} />
 
   const ledgerRecord = ledger.data ?? {}
+  const normalizedRecord = asRecord(energy.data?.metrics) ?? {}
+  const dailyWh = asReading(normalizedRecord.daily_charge_wh)
+  const exactDailyKwh = exactKwhFromWh(dailyWh)
+  const normalizedDisplay = exactDailyKwh
+    ? { ...normalizedRecord, daily_charge_kwh: exactDailyKwh }
+    : normalizedRecord
+  const counterRecord = asRecord(ledgerRecord.counters) ?? {}
+  const nativeDailyKwh = asReading(counterRecord.daily_charge_kwh)
+  const counterDisplay =
+    exactDailyKwh && !hasMetricValue(nativeDailyKwh)
+      ? { ...counterRecord, daily_charge_kwh: exactDailyKwh }
+      : counterRecord
+
   return (
     <div className="page site-page">
       <div className="page-heading">
         <span className="eyebrow">Source-backed accounting</span>
         <h1>Energy ledger</h1>
         <p>
-          Wh, kWh, and Ah remain distinct evidence classes. Unsupported discharge, load, generator, or
-          loss estimates stay explicitly unknown rather than being fabricated from instantaneous voltage.
+          Wh, kWh, and Ah remain distinct evidence classes. Exact unit conversions are labeled derived;
+          unsupported discharge, load, generator, or loss estimates remain unavailable with the backend reason
+          shown instead of being presented as unexplained empty values.
         </p>
       </div>
       {(energy.isError || ledger.isError) && <ErrorState title="Some energy accounting is unavailable" />}
       <Panel eyebrow="Normalized counters" title="Site energy">
-        {energy.isLoading ? <LoadingState /> : <ReadingGrid value={energy.data?.metrics} />}
+        {energy.isLoading ? <LoadingState /> : <ReadingGrid value={normalizedDisplay} />}
       </Panel>
       <div className="site-section-grid">
         <Panel eyebrow="Flows" title="Energy flows">
           {ledger.isLoading ? <LoadingState /> : <ReadingGrid value={ledgerRecord.flows} />}
         </Panel>
-        <Panel eyebrow="Counters" title="Native counters">
-          {ledger.isLoading ? <LoadingState /> : <ReadingGrid value={ledgerRecord.counters} />}
+        <Panel eyebrow="Counters" title="Counters & exact unit views">
+          {ledger.isLoading ? <LoadingState /> : <ReadingGrid value={counterDisplay} />}
         </Panel>
       </div>
     </div>
