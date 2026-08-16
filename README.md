@@ -8,6 +8,8 @@ dashboard. It combines physical-controller inventory, live power flow, device in
 inspection, historical telemetry, charge-state analysis, export tooling, communications diagnostics,
 and a wall-display mode while keeping the backend as the source of truth.
 
+> **Release status:** the latest published frontend release is **v0.1.0**. Its documented backend baseline is **MorningstarModbusAPI v0.4.0**. The frontend still retains explicit compatibility fallbacks for older API deployments where noted below.
+
 ## Current capabilities
 
 - physical-controller inventory backed by `GET /v1/controllers`;
@@ -109,7 +111,7 @@ or off-grid deployments.
 
 ## Backend compatibility
 
-Core inventory expects the backend controller inventory endpoint:
+The `v0.1.0` frontend release is documented against MorningstarModbusAPI `v0.4.0`. Core inventory expects the backend controller inventory endpoint:
 
 ```http
 GET /v1/controllers
