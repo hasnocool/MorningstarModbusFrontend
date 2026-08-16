@@ -9,8 +9,13 @@ import { init, use as registerECharts } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BarChart3, Clock3, Download, Layers3, RotateCcw } from 'lucide-react'
-import { useDeviceRoute } from '../app'
-import { ApiError, useHistory, useLatest, useRegisterMap, useRegisterStats } from '../api'
+import { useControllerRoute } from '../app'
+import { ApiError, useRegisterMap } from '../api'
+import {
+  useControllerHistory,
+  useControllerLatest,
+  useControllerRegisterStats,
+} from '../controller-data'
 import { ErrorState, LoadingState, Panel, SummaryStat } from '../components'
 import {
   flattenRegisterDefinitions,
@@ -200,8 +205,8 @@ function StateTimeline({
 }
 
 export default function HistoryPage() {
-  const { deviceId } = useDeviceRoute()
-  const latest = useLatest(deviceId)
+  const { controllerUid, deviceId, isLoading: routeLoading } = useControllerRoute()
+  const latest = useControllerLatest(controllerUid)
   const registerMap = useRegisterMap(deviceId)
   const [preset, setPreset] = useState('24h')
   const [resolution, setResolution] = useState('auto')
@@ -229,10 +234,13 @@ export default function HistoryPage() {
       'input_power',
       'charge_state',
     ]
-    const names = available.map((item) => item.register_name)
-    const selected = priorities.filter((candidate) => names.includes(candidate))
-    return selected.length ? selected.slice(0, 4) : names.slice(0, 4)
-  }, [available])
+    const names = new Set([
+      ...definitions.map((item) => item.name),
+      ...available.map((item) => item.register_name),
+    ])
+    const selected = priorities.filter((candidate) => names.has(candidate))
+    return selected.length ? selected.slice(0, 4) : [...names].slice(0, 4)
+  }, [available, definitions])
   const [selectedNames, setSelectedNames] = useState<string[]>([])
 
   useEffect(() => {
@@ -241,14 +249,14 @@ export default function HistoryPage() {
 
   const range = useMemo(() => rangeForPreset(preset), [preset])
   const effectiveResolution = resolution === 'auto' ? range.resolution : resolution
-  const history = useHistory(
-    deviceId,
+  const history = useControllerHistory(
+    controllerUid,
     selectedNames,
     range.from,
     range.to,
     effectiveResolution,
   )
-  const stats = useRegisterStats(deviceId, selectedNames, range.from, range.to)
+  const stats = useControllerRegisterStats(controllerUid, selectedNames, range.from, range.to)
 
   const toggle = (name: string) => {
     setSelectedNames((current) =>
@@ -260,16 +268,21 @@ export default function HistoryPage() {
     )
   }
 
+  if (!controllerUid) {
+    return routeLoading ? <LoadingState label="Resolving physical controller…" /> : <ErrorState title="No controller selected" />
+  }
+
   const tooLarge = history.error instanceof ApiError && history.error.status === 413
 
   return (
     <div className="page">
       <div className="page-heading">
-        <span className="eyebrow">Time-series laboratory</span>
-        <h1>Historical telemetry</h1>
+        <span className="eyebrow">Controller-native time-series laboratory</span>
+        <h1>Telemetry history</h1>
         <p>
-          Compare multiple controller registers, preserve min/max excursions, and inspect state
-          transitions without downloading every raw sample.
+          Compare the important electrical and charging metrics across the physical controller's complete
+          stored identity history. Historical connection changes are unified by immutable controller UID,
+          while min/max excursions and charge-state transitions remain visible.
         </p>
       </div>
 
@@ -309,10 +322,11 @@ export default function HistoryPage() {
       </div>
 
       <div className="history-layout">
-        <Panel eyebrow="Series" title="Registers" className="series-picker">
+        <Panel eyebrow="Series" title="Important metrics" className="series-picker">
           <p className="muted">
-            Choose up to eight semantic series. Manufacturer-reserved words are hidden; raw aliases
-            appear only for genuinely unknown addresses.
+            Battery voltage, array voltage, charge current, power, and charge state are selected first when
+            the active profile exposes them. Choose up to eight semantic series. Manufacturer-reserved words
+            stay hidden; raw aliases appear only for genuinely unknown addresses.
           </p>
           <div className="series-list">
             {available.map((register) => (
@@ -338,15 +352,15 @@ export default function HistoryPage() {
             title={`${preset} · ${effectiveResolution}`}
             action={<Layers3 size={18} />}
           >
-            {history.isLoading && <LoadingState label="Querying telemetry history…" />}
+            {history.isLoading && <LoadingState label="Querying controller-native telemetry history…" />}
             {tooLarge && (
               <div className="error-state">
                 <AlertTriangle size={20} />
                 <div>
                   <strong>Too many raw observations</strong>
                   <div className="muted">
-                    Use a coarser resolution or shorter time window. The backend protected this
-                    request from creating an oversized response.
+                    Use a coarser resolution or shorter time window. The backend protected this request from
+                    creating an oversized response.
                   </div>
                 </div>
               </div>
@@ -394,7 +408,7 @@ export default function HistoryPage() {
 
       <div className="history-footnote">
         <Download size={15} />
-        Raw and aggregated exports are available from the Data page.
+        Raw and aggregated controller-scoped exports are available from the Data page.
       </div>
     </div>
   )
