@@ -19,6 +19,7 @@ export interface ControllerConnection {
 }
 
 export interface ControllerRecord {
+  controller_uid: string
   controller_id: string
   identity_source: 'controller_serial' | 'usb_serial' | 'endpoint'
   identity_value?: string

@@ -1,73 +1,133 @@
 # MorningstarModbusFrontend
 
-A read-only operations and engineering console for
+A read-only site operations and engineering console for
 [`MorningstarModbusAPI`](https://github.com/hasnocool/MorningstarModbusAPI).
 
 The frontend is designed for always-on solar-controller monitoring rather than as a generic card
-dashboard. It combines physical-controller inventory, live power flow, device intelligence, register
-inspection, historical telemetry, charge-state analysis, export tooling, communications diagnostics,
-and a wall-display mode while keeping the backend as the source of truth.
+dashboard. It now treats the installation and immutable physical controllers as the primary product
+entities while retaining raw device/connection provenance for engineering views.
 
-> **Release status:** the latest published frontend release is **v0.1.0**. Its documented backend baseline is **MorningstarModbusAPI v0.4.0**. The frontend still retains explicit compatibility fallbacks for older API deployments where noted below.
+> **Development status:** `main` is currently released as **v0.1.0**. This branch prepares
+> **v0.2.0 Controller-Native Site Intelligence** against **MorningstarModbusAPI v0.6+**.
 
-## Current capabilities
+## v0.2 highlights
 
-- physical-controller inventory backed by `GET /v1/controllers`;
-- connection-history display so USB paths and network endpoints are not presented as separate physical controllers;
-- latest decoded telemetry and PV -> controller -> battery power flow;
-- firmware-aware register explorer with current values and catalog metadata;
-- reserved-register handling that distinguishes Morningstar-documented reserved words from genuinely unknown raw addresses;
-- historical multi-series charts with min/max envelopes and categorical state-transition timelines;
-- device-intelligence evidence, warnings, profile validation, firmware, hardware, model, and serial metadata;
-- database coverage, CSV/JSONL streaming export, and history-size guardrail handling;
-- optional polling-performance diagnostics with graceful fallback when the backend does not expose them;
-- dark, light, high-contrast, responsive, and wall-display presentation modes;
-- explicit loading, stale, empty, unsupported, offline, and error states.
+- `/` is a real system/site dashboard instead of a redirect to the first controller;
+- stable controller workspaces are keyed by immutable `controller_uid`;
+- old encoded `/devices/:deviceKey/...` bookmarks are resolved and redirected to the physical controller;
+- latest telemetry, history, statistics, coverage, gap reconciliation, energy analytics, export, and polling diagnostics use controller-scoped API routes;
+- site power flow, energy ledger, health, normalized history, events, topology, and component graph use `/v1/systems/...`;
+- system Server-Sent Events invalidate the TanStack Query cache for low-latency updates while interval polling remains a fallback;
+- controller history integrity distinguishes live samples, controller-retained recovery, partial evidence, and genuinely missing days;
+- controller energy compares source-backed controller-reported energy with locally integrated output-power history;
+- device intelligence, register maps, and profile validation remain tied to the active device connection because those backend engineering surfaces are still device-scoped.
 
-The browser never writes Modbus registers, coils, controller settings, reset commands, or charge-state
-controls.
+The browser never writes Modbus registers, coils, controller settings, reset commands, equalization
+commands, charge-state controls, or arbitrary protocol operations.
 
-## Controller and connection model
+## Identity model
 
-The UI has two related identity layers:
+The frontend mirrors the backend's three-level model:
 
-1. **Physical controller inventory** - `/v1/controllers` supplies one inventory record for one physical controller, including current and historical connections.
-2. **Current device connection** - controller workspaces currently route using that controller's `current_device_id` and query the legacy-compatible `/v1/devices/...` telemetry/history endpoints.
+| Identity | Meaning | Frontend use |
+| --- | --- | --- |
+| `system_uid` | Persistent site/system grouping | Site dashboard, power flow, energy, events, topology, normalized history |
+| `controller_uid` | Immutable physical-controller identity | **Canonical controller route and history/energy scope** |
+| `device_id` | Raw telemetry-owning connection/storage identity | Current-connection engineering metadata and provenance |
 
-This means a USB path or DHCP address is treated as connection history in the inventory, while the
-workspace still has an exact raw-device provenance key for current API calls. The frontend does not
-invent controller identity itself.
+A USB path, TCP address, or evidence-derived `controller_id` may change without changing the
+`controller_uid`. Controller-native history therefore follows one physical controller across endpoint
+changes without rewriting or losing the original `source_device_id` evidence.
+
+## Site operations
+
+The site layer uses the backend's normalized system API:
+
+```http
+GET /v1/systems
+GET /v1/systems/{system_uid}/latest
+GET /v1/systems/{system_uid}/power-flow
+GET /v1/systems/{system_uid}/energy
+GET /v1/systems/{system_uid}/energy-ledger
+GET /v1/systems/{system_uid}/health
+GET /v1/systems/{system_uid}/history
+GET /v1/systems/{system_uid}/events
+GET /v1/systems/{system_uid}/topology
+GET /v1/systems/{system_uid}/component-graph
+GET /v1/systems/{system_uid}/stream
+```
+
+Normalized metrics retain backend quality, contributor counts, source authority, and conflict
+semantics. Whole-system measurements are not silently summed, Ah is not converted into invented Wh,
+and unsupported energy quantities stay explicitly unknown.
+
+## Controller-native operations
+
+Controller workspaces use immutable identity for the data surfaces that describe the physical device
+over time:
+
+```http
+GET /v1/controllers/{controller_uid}
+GET /v1/controllers/{controller_uid}/latest
+GET /v1/controllers/{controller_uid}/registers/history
+GET /v1/controllers/{controller_uid}/registers/stats
+GET /v1/controllers/{controller_uid}/history/summary
+GET /v1/controllers/{controller_uid}/history/coverage
+GET /v1/controllers/{controller_uid}/history/gaps
+GET /v1/controllers/{controller_uid}/energy/daily
+GET /v1/controllers/{controller_uid}/energy/summary
+GET /v1/controllers/{controller_uid}/history/export
+GET /v1/controllers/{controller_uid}/polling/performance
+```
+
+Raw controller-scoped history/export responses can still identify the original `source_device_id`.
+The UI never fabricates high-frequency samples from retained daily history.
+
+## Device-scoped engineering seam
+
+MorningstarModbusAPI v0.6 still exposes several engineering resources per active raw device. The
+frontend intentionally resolves the controller's current device only for these surfaces:
+
+```http
+GET /v1/devices/register-map
+GET /v1/devices/intelligence
+GET /v1/devices/profile/validation
+```
+
+This does not weaken controller-native routing or history ownership; it keeps the UI aligned with the
+backend's actual API boundaries rather than pretending a controller-scoped endpoint exists.
 
 ## Register semantics
 
-Register names and units come from the backend's active firmware-aware register map.
-
-Raw aliases such as `holding_0x003F` are not automatically treated as missing mappings. When the
-backend publishes `reserved_ranges`, those addresses are classified as documented reserved words and
-suppressed from semantic telemetry/series lists. The TriStar MPPT v11 frontend also carries a narrow
-compatibility fallback for its documented reserved spans so it behaves correctly with an older
-backend that has not yet added `reserved_ranges`.
+Register names and units come from the backend's active firmware-aware register map. Raw aliases such
+as `holding_0x003F` are not automatically treated as missing mappings. When the backend publishes
+`reserved_ranges`, those addresses are classified as documented reserved words and suppressed from
+semantic telemetry lists. The TriStar MPPT v11 frontend retains a narrow compatibility fallback for
+its documented reserved spans.
 
 Genuinely unknown raw addresses remain visible as `Unmapped ...` diagnostic evidence. Reserved words
 are never given speculative semantic names.
 
-## Polling and persistence semantics
+## Live update model
 
-Browser refresh cadence is independent of both controller Modbus polling and backend database
-persistence cadence. For example, the UI may refresh latest telemetry every second even if the
-backend is polling the controller faster than that.
+Browser rendering cadence remains independent from controller Modbus polling and database persistence.
+For site pages, the frontend opens the read-only SSE stream:
 
-Polling-performance values displayed by the frontend are whatever the backend has persisted and
-published. On a backend that polls faster than it stores telemetry, `poll_rate_hz` can therefore be a
-persisted performance/history sample rate rather than the instantaneous in-memory Modbus read rate.
+```http
+GET /v1/systems/{system_uid}/stream
+```
+
+`telemetry` and `system_event` messages invalidate the appropriate TanStack Query cache entries. The
+normal visibility-aware query intervals remain active as a reconnect/fallback path rather than making
+the UI depend on a permanently healthy stream.
 
 ## Stack
 
 - Vite 8 / Rolldown
 - React 19 + strict TypeScript
-- TanStack Query for server state
-- React Router for URL-addressable workspaces
-- Apache ECharts, lazy-loaded on the history route
+- TanStack Query for server state and SSE-driven cache refresh
+- React Router for URL-addressable system/controller workspaces
+- Apache ECharts for the existing advanced historical explorer
 - Tailwind CSS 4 plus semantic CSS design tokens
 - Vitest + Testing Library + MSW
 - Playwright E2E
@@ -89,7 +149,6 @@ Run the complete quality gate with:
 npm run check
 ```
 
-That runs lint, strict TypeScript checks, unit tests, the production build, and the bundle-size check.
 For browser E2E:
 
 ```bash
@@ -99,83 +158,57 @@ npm run e2e
 
 ## Production deployment
 
-Build static assets:
-
 ```bash
 npm run build
 ```
 
 Serve `dist/` behind Caddy/nginx and proxy `/api/*` to the backend while stripping `/api`. Keeping the
-frontend and backend on one browser origin avoids broad CORS rules and is well suited to isolated LAN
-or off-grid deployments.
-
-## Backend compatibility
-
-The `v0.1.0` frontend release is documented against MorningstarModbusAPI `v0.4.0`. Core inventory expects the backend controller inventory endpoint:
-
-```http
-GET /v1/controllers
-```
-
-Current controller workspaces use the selected connection's raw device ID with endpoints such as:
-
-```http
-GET /v1/devices/latest
-GET /v1/devices/register-map
-GET /v1/devices/registers/history
-GET /v1/devices/registers/stats
-GET /v1/devices/history/summary
-GET /v1/devices/history/export
-GET /v1/devices/intelligence
-GET /v1/devices/profile/validation
-```
-
-Polling diagnostics are feature-detected. A `404` from `/v1/devices/polling/performance` is rendered
-as an unavailable/upgrade state rather than breaking the rest of the console.
-
-The frontend can consume backend `reserved_ranges` register-map metadata when available and retains a
-TriStar MPPT v11 reserved-range compatibility fallback for older API deployments.
-
-## OpenAPI types
-
-When a backend is running locally, refresh generated API schema/types with:
-
-```bash
-npm run api:types
-```
-
-`OPENAPI_URL` can point at another backend OpenAPI document.
+frontend and backend on one browser origin avoids broad CORS rules and also lets `EventSource` connect
+to the same protected/LAN origin as the normal HTTP API.
 
 ## Routes
 
-- `/` - redirects to the first physical controller's current connection when one exists;
-- `/devices` - physical-controller inventory;
-- `/devices/:deviceKey/overview` - selected connection overview;
-- `/devices/:deviceKey/live` - latest semantic telemetry;
-- `/devices/:deviceKey/history` - multi-series historical telemetry;
-- `/devices/:deviceKey/registers` - firmware-filtered register explorer;
-- `/devices/:deviceKey/intelligence` - identity evidence and validation;
-- `/devices/:deviceKey/diagnostics` - health, communications, coverage, and polling diagnostics;
-- `/devices/:deviceKey/data` - streaming data export;
-- `/catalog` - backend device catalog;
-- `/settings` - UI/runtime information and theme settings;
-- `/display/:deviceKey` - wall-display mode.
+### Site
 
-Raw device IDs are encoded into URL-safe keys so serial IDs containing `/` do not break routing.
+- `/` - default site overview;
+- `/site/power` - source/quality-aware power flow;
+- `/site/energy` - normalized energy plus evidence-preserving energy ledger;
+- `/site/history` - normalized cross-controller metric history;
+- `/site/events` - unified event timeline;
+- `/site/topology` - transport topology plus component graph;
+- `/devices` - physical-controller inventory.
+
+### Physical controller
+
+- `/controllers/:controllerUid/overview` - controller-native overview;
+- `/controllers/:controllerUid/live` - active-connection semantic telemetry;
+- `/controllers/:controllerUid/history` - unified history integrity and gap recovery;
+- `/controllers/:controllerUid/energy` - controller/local energy reconciliation;
+- `/controllers/:controllerUid/registers` - active device's firmware-aware register explorer;
+- `/controllers/:controllerUid/intelligence` - active device intelligence/evidence;
+- `/controllers/:controllerUid/diagnostics` - controller polling/history plus current-device intelligence;
+- `/controllers/:controllerUid/data` - controller-scoped streaming export;
+- `/display/controller/:controllerUid` - wall display resolved through the controller's current connection.
+
+Legacy encoded `/devices/:deviceKey/...` routes are compatibility redirects. They resolve the raw
+current/canonical/historical device ID through controller inventory and replace the URL with the
+corresponding immutable controller route.
 
 ## Design principles
 
-1. Backend telemetry and catalog metadata remain authoritative; the frontend is read-only.
-2. One physical controller is not duplicated merely because its USB or network endpoint changed.
-3. Semantic register names must be source-backed; reserved words never receive invented labels.
-4. Unknown raw register aliases remain available when they are genuine diagnostic evidence.
-5. Status colors are semantic, not decorative.
-6. Historical views retain min/max excursions and state transitions instead of flattening everything into averages.
-7. Offline live telemetry must not make historical data inaccessible.
-8. Every data surface must represent loading, stale, empty, unsupported, and error states deliberately.
-9. Browser refresh, Modbus polling, and database persistence are separate cadences.
+1. Backend telemetry, identity, normalized metrics, and catalog metadata remain authoritative.
+2. The frontend is read-only and exposes no controller mutation path.
+3. `controller_uid` is the stable controller bookmark; connection IDs are provenance, not identity.
+4. Site totals preserve aggregation/authority rules and explicit quality.
+5. Retained daily evidence is never expanded into fake samples.
+6. Semantic register names must be source-backed; reserved words never receive invented labels.
+7. Unknown raw register aliases remain available when they are genuine diagnostic evidence.
+8. Historical views remain usable when current live telemetry is unavailable.
+9. Loading, stale, empty, unsupported, offline, and error states are deliberate product states.
+10. Browser refresh, SSE delivery, Modbus polling, and persistence are separate cadences.
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) - data flow, API boundaries, identity/routing, register semantics, query cadence, reliability, and deployment.
+- [`docs/architecture.md`](docs/architecture.md) - application layers, identity/routing, API boundaries, reliability, and deployment.
 - [`docs/design-system.md`](docs/design-system.md) - visual semantics, accessibility, register presentation, and component rules.
+- [`docs/v0.2-controller-native-site-intelligence.md`](docs/v0.2-controller-native-site-intelligence.md) - v0.2 migration and feature contract.

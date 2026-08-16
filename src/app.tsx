@@ -1,5 +1,6 @@
 import {
   Activity,
+  BatteryCharging,
   BookOpenText,
   Boxes,
   Database,
@@ -13,15 +14,9 @@ import {
   Sun,
   TableProperties,
   Wrench,
+  Zap,
 } from 'lucide-react'
-import {
-  Suspense,
-  lazy,
-  useEffect,
-  useMemo,
-  useState,
-  type PropsWithChildren,
-} from 'react'
+import { Suspense, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   BrowserRouter,
@@ -32,30 +27,37 @@ import {
   useLocation,
   useParams,
 } from 'react-router-dom'
-import { useDevices, useHealth } from './api'
+import { useHealth } from './api'
 import {
   partitionControllerInventory,
-  preferredController,
   useControllers,
+  type ControllerRecord,
 } from './controller-api'
 import { LoadingState, StatusBadge } from './components'
-import { applyTheme, decodeDeviceId, encodeDeviceId, loadTheme, type Theme } from './lib'
-import {
-  DevicesPage,
-  DisplayPage,
-  LivePage,
-  OverviewPage,
-} from './pages/core'
+import { applyTheme, decodeDeviceId, loadTheme, type Theme } from './lib'
+import { DevicesPage, DisplayPage, LivePage } from './pages/core'
 import {
   CatalogPage,
-  DataPage,
-  DiagnosticsPage,
   IntelligencePage,
   RegistersPage,
   SettingsPage,
 } from './pages/engineering'
-
-const HistoryPage = lazy(() => import('./pages/history'))
+import {
+  ControllerDataPage,
+  ControllerDiagnosticsPage,
+  ControllerEnergyPage,
+  ControllerHistoryPage,
+  ControllerOverviewPage,
+} from './pages/controller-native'
+import {
+  SiteEnergyPage,
+  SiteEventsPage,
+  SiteHistoryPage,
+  SiteOverviewPage,
+  SitePowerFlowPage,
+  SiteTopologyPage,
+} from './pages/site'
+import './site-intelligence.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,34 +68,93 @@ const queryClient = new QueryClient({
   },
 })
 
+export interface ControllerRouteContext {
+  controllerUid?: string
+  controller?: ControllerRecord
+  deviceId?: string
+  isLoading: boolean
+}
+
+export function useControllerRoute(): ControllerRouteContext {
+  const { controllerUid } = useParams()
+  const controllers = useControllers()
+  const controller = controllers.data?.find((item) => item.controller_uid === controllerUid)
+  return {
+    controllerUid,
+    controller,
+    deviceId: controller?.current_device_id,
+    isLoading: controllers.isLoading,
+  }
+}
+
 export interface DeviceRouteContext {
   deviceId?: string
   deviceKey?: string
 }
 
 export function useDeviceRoute(): DeviceRouteContext {
-  const { deviceKey } = useParams()
+  const { deviceKey, controllerUid } = useParams()
+  const controllers = useControllers()
+  if (controllerUid) {
+    const controller = controllers.data?.find((item) => item.controller_uid === controllerUid)
+    return { deviceKey, deviceId: controller?.current_device_id }
+  }
   return { deviceKey, deviceId: decodeDeviceId(deviceKey) }
 }
 
-function DeviceRedirect() {
+function controllerForDevice(
+  controllers: ControllerRecord[] | undefined,
+  deviceId: string | undefined,
+): ControllerRecord | undefined {
+  if (!deviceId) return undefined
+  return controllers?.find(
+    (controller) =>
+      controller.current_device_id === deviceId ||
+      controller.canonical_device_id === deviceId ||
+      controller.history_device_ids?.includes(deviceId) ||
+      controller.connections.some((connection) => connection.device_id === deviceId),
+  )
+}
+
+function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?: string }) {
+  const { deviceKey, section } = useParams()
   const controllers = useControllers()
-  if (controllers.isLoading) return <LoadingState />
-  const first = preferredController(controllers.data)
-  if (!first) return <OverviewPage />
-  return <Navigate to={`/devices/${encodeDeviceId(first.current_device_id)}/overview`} replace />
+  const deviceId = decodeDeviceId(deviceKey)
+  if (controllers.isLoading) return <LoadingState label="Resolving physical controller…" />
+
+  const controller = controllerForDevice(controllers.data, deviceId)
+  if (!controller) return <Navigate to="/devices" replace />
+
+  const supported = new Set([
+    'overview',
+    'live',
+    'history',
+    'energy',
+    'registers',
+    'intelligence',
+    'diagnostics',
+    'data',
+  ])
+  const destination = supported.has(section || '') ? section : defaultSection
+  return <Navigate to={`/controllers/${controller.controller_uid}/${destination}`} replace />
 }
 
 const globalLinks = [
-  { to: '/', label: 'Overview', icon: LayoutDashboard },
-  { to: '/devices', label: 'Controllers', icon: Boxes },
+  { to: '/', label: 'Site overview', icon: LayoutDashboard },
+  { to: '/site/power', label: 'Power flow', icon: Zap },
+  { to: '/site/energy', label: 'Energy', icon: BatteryCharging },
+  { to: '/site/history', label: 'Site history', icon: History },
+  { to: '/site/events', label: 'Events', icon: Activity },
+  { to: '/site/topology', label: 'Topology', icon: Boxes },
+  { to: '/devices', label: 'Controllers', icon: Gauge },
   { to: '/catalog', label: 'Catalog', icon: BookOpenText },
 ]
 
-const deviceLinks = [
+const controllerLinks = [
   { suffix: 'overview', label: 'Overview', icon: Gauge },
   { suffix: 'live', label: 'Live telemetry', icon: Activity },
-  { suffix: 'history', label: 'History', icon: History },
+  { suffix: 'history', label: 'History integrity', icon: History },
+  { suffix: 'energy', label: 'Energy truth', icon: BatteryCharging },
   { suffix: 'registers', label: 'Registers', icon: TableProperties },
   { suffix: 'intelligence', label: 'Intelligence', icon: RadioTower },
   { suffix: 'diagnostics', label: 'Diagnostics', icon: Wrench },
@@ -102,24 +163,29 @@ const deviceLinks = [
 
 function AppShell({ children }: PropsWithChildren) {
   const health = useHealth()
-  const devices = useDevices()
   const controllers = useControllers()
   const location = useLocation()
-  const deviceKey = location.pathname.match(/^\/devices\/([^/]+)/)?.[1]
-  const [theme, setTheme] = useState<Theme>(() => loadTheme())
-
-  useEffect(() => applyTheme(theme), [theme])
-
-  const currentDevice = useMemo(
-    () => devices.data?.find((device) => encodeDeviceId(device.id) === deviceKey),
-    [deviceKey, devices.data],
+  const controllerUid = location.pathname.match(/^\/controllers\/([^/]+)/)?.[1]
+  const currentController = useMemo(
+    () => controllers.data?.find((controller) => controller.controller_uid === controllerUid),
+    [controllerUid, controllers.data],
   )
   const controllerInventory = useMemo(
     () => partitionControllerInventory(controllers.data),
     [controllers.data],
   )
+  const [theme, setTheme] = useState<Theme>(() => loadTheme())
+
+  useEffect(() => applyTheme(theme), [theme])
 
   const nextTheme: Theme = theme === 'dark' ? 'light' : theme === 'light' ? 'high-contrast' : 'dark'
+  const contextLabel = currentController
+    ? currentController.model || currentController.product_code || currentController.profile
+    : location.pathname === '/catalog'
+      ? 'Device catalog'
+      : location.pathname === '/devices'
+        ? 'Controller inventory'
+        : 'Site operations'
 
   return (
     <div className="app-shell">
@@ -135,26 +201,21 @@ function AppShell({ children }: PropsWithChildren) {
         </div>
 
         <nav aria-label="Primary navigation">
-          <div className="nav-group-label">System</div>
+          <div className="nav-group-label">Site</div>
           {globalLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className="nav-link"
-              end={to === '/' || to === '/devices'}
-            >
+            <NavLink key={to} to={to} className="nav-link" end={to === '/' || to === '/devices'}>
               <Icon size={17} />
               {label}
             </NavLink>
           ))}
 
-          {deviceKey && (
+          {controllerUid && (
             <>
-              <div className="nav-group-label">Active controller</div>
-              {deviceLinks.map(({ suffix, label, icon: Icon }) => (
+              <div className="nav-group-label">Physical controller</div>
+              {controllerLinks.map(({ suffix, label, icon: Icon }) => (
                 <NavLink
                   key={suffix}
-                  to={`/devices/${deviceKey}/${suffix}`}
+                  to={`/controllers/${controllerUid}/${suffix}`}
                   className="nav-link"
                 >
                   <Icon size={17} />
@@ -176,7 +237,13 @@ function AppShell({ children }: PropsWithChildren) {
             <span>API</span>
             <StatusBadge
               status={health.isSuccess ? health.data.status : health.isError ? 'offline' : 'checking'}
-              label={health.isSuccess ? `v${health.data.version ?? '?'}` : health.isError ? 'Unavailable' : 'Checking'}
+              label={
+                health.isSuccess
+                  ? `v${health.data.version ?? '?'}`
+                  : health.isError
+                    ? 'Unavailable'
+                    : 'Checking'
+              }
             />
           </div>
           <div>
@@ -189,20 +256,16 @@ function AppShell({ children }: PropsWithChildren) {
       <div className="app-main">
         <header className="topbar">
           <div className="topbar-context">
-            <span className="breadcrumb">
-              {currentDevice
-                ? currentDevice.product_code || currentDevice.profile
-                : location.pathname === '/catalog'
-                  ? 'Device catalog'
-                  : location.pathname === '/devices'
-                    ? 'Controller inventory'
-                    : 'System overview'}
-            </span>
-            {currentDevice && <StatusBadge status={currentDevice.status} />}
+            <span className="breadcrumb">{contextLabel}</span>
+            {currentController && <StatusBadge status={currentController.status} />}
           </div>
           <div className="topbar-actions">
-            {currentDevice && (
-              <NavLink className="icon-button" to={`/display/${deviceKey}`} title="Wall display">
+            {currentController && (
+              <NavLink
+                className="icon-button"
+                to={`/display/controller/${currentController.controller_uid}`}
+                title="Wall display"
+              >
                 <Monitor size={18} />
               </NavLink>
             )}
@@ -226,6 +289,14 @@ function RoutedApp() {
   return (
     <Routes>
       <Route
+        path="/display/controller/:controllerUid"
+        element={
+          <Suspense fallback={<LoadingState />}>
+            <DisplayPage />
+          </Suspense>
+        }
+      />
+      <Route
         path="/display/:deviceKey"
         element={
           <Suspense fallback={<LoadingState />}>
@@ -240,15 +311,23 @@ function RoutedApp() {
           <AppShell>
             <Suspense fallback={<LoadingState />}>
               <Routes>
-                <Route path="/" element={<DeviceRedirect />} />
+                <Route path="/" element={<SiteOverviewPage />} />
+                <Route path="/site/power" element={<SitePowerFlowPage />} />
+                <Route path="/site/energy" element={<SiteEnergyPage />} />
+                <Route path="/site/history" element={<SiteHistoryPage />} />
+                <Route path="/site/events" element={<SiteEventsPage />} />
+                <Route path="/site/topology" element={<SiteTopologyPage />} />
                 <Route path="/devices" element={<DevicesPage />} />
-                <Route path="/devices/:deviceKey/overview" element={<OverviewPage />} />
-                <Route path="/devices/:deviceKey/live" element={<LivePage />} />
-                <Route path="/devices/:deviceKey/history" element={<HistoryPage />} />
-                <Route path="/devices/:deviceKey/registers" element={<RegistersPage />} />
-                <Route path="/devices/:deviceKey/intelligence" element={<IntelligencePage />} />
-                <Route path="/devices/:deviceKey/diagnostics" element={<DiagnosticsPage />} />
-                <Route path="/devices/:deviceKey/data" element={<DataPage />} />
+                <Route path="/devices/:deviceKey" element={<LegacyDeviceRedirect />} />
+                <Route path="/devices/:deviceKey/:section" element={<LegacyDeviceRedirect />} />
+                <Route path="/controllers/:controllerUid/overview" element={<ControllerOverviewPage />} />
+                <Route path="/controllers/:controllerUid/live" element={<LivePage />} />
+                <Route path="/controllers/:controllerUid/history" element={<ControllerHistoryPage />} />
+                <Route path="/controllers/:controllerUid/energy" element={<ControllerEnergyPage />} />
+                <Route path="/controllers/:controllerUid/registers" element={<RegistersPage />} />
+                <Route path="/controllers/:controllerUid/intelligence" element={<IntelligencePage />} />
+                <Route path="/controllers/:controllerUid/diagnostics" element={<ControllerDiagnosticsPage />} />
+                <Route path="/controllers/:controllerUid/data" element={<ControllerDataPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
