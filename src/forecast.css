@@ -1,3 +1,5 @@
+@import './mobile-navigation.css';
+
 .forecast-page {
   display: grid;
   gap: 20px;
