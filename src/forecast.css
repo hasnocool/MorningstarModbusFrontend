@@ -1,0 +1,223 @@
+.forecast-page {
+  display: grid;
+  gap: 20px;
+}
+
+.forecast-heading {
+  align-items: flex-start;
+}
+
+.forecast-heading-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.forecast-evidence-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--state-warning, rgba(245, 158, 11, 0.45));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--state-warning, #f59e0b) 8%, transparent);
+}
+
+.forecast-evidence-notice div {
+  display: grid;
+  gap: 4px;
+}
+
+.forecast-evidence-notice span {
+  color: var(--text-secondary);
+}
+
+.forecast-summary-grid,
+.forecast-accuracy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.forecast-chart {
+  width: 100%;
+  min-height: 380px;
+}
+
+.forecast-progress-row {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.forecast-progress-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.forecast-progress-row span,
+.forecast-progress-row small {
+  color: var(--text-secondary);
+}
+
+.forecast-progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-raised);
+}
+
+.forecast-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--energy-solar);
+  transition: width 180ms ease;
+}
+
+.forecast-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 16px;
+}
+
+.charge-forecast-list {
+  display: grid;
+  gap: 12px;
+}
+
+.charge-forecast-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.charge-forecast-card > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.charge-forecast-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.charge-forecast-card dl > div {
+  display: grid;
+  gap: 3px;
+}
+
+.charge-forecast-card dt {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.charge-forecast-card dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.forecast-provenance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.forecast-provenance-grid > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icon label'
+    'icon value';
+  column-gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.forecast-provenance-grid svg {
+  grid-area: icon;
+  align-self: center;
+}
+
+.forecast-provenance-grid span {
+  grid-area: label;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.forecast-provenance-grid strong {
+  grid-area: value;
+  overflow-wrap: anywhere;
+}
+
+.forecast-semantics {
+  margin: 14px 0 0;
+  line-height: 1.55;
+}
+
+.forecast-accuracy-table-wrap {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.forecast-accuracy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.forecast-accuracy-table th,
+.forecast-accuracy-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.forecast-accuracy-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+@media (max-width: 1000px) {
+  .forecast-summary-grid,
+  .forecast-accuracy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .forecast-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .forecast-summary-grid,
+  .forecast-accuracy-grid,
+  .forecast-provenance-grid,
+  .charge-forecast-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .forecast-chart {
+    min-height: 320px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forecast-progress-track > span {
+    transition: none;
+  }
+}
