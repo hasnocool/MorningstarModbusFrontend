@@ -21,7 +21,10 @@ export interface ControllerConnection {
 export interface ControllerRecord {
   controller_id: string
   identity_source: 'controller_serial' | 'usb_serial' | 'endpoint'
+  identity_value?: string
+  canonical_device_id?: string
   current_device_id: string
+  history_device_ids?: string[]
   status: string
   vendor_name?: string
   product_code?: string
@@ -38,6 +41,37 @@ export interface ControllerRecord {
   active_connection_count: number
   current_connection: ControllerConnection
   connections: ControllerConnection[]
+}
+
+export interface ControllerInventoryGroups {
+  primary: ControllerRecord[]
+  unverifiedLegacy: ControllerRecord[]
+}
+
+export function partitionControllerInventory(
+  records: ControllerRecord[] | undefined,
+): ControllerInventoryGroups {
+  const primary: ControllerRecord[] = []
+  const unverifiedLegacy: ControllerRecord[] = []
+
+  for (const controller of records ?? []) {
+    if (controller.identity_source === 'endpoint' && controller.active_connection_count === 0) {
+      unverifiedLegacy.push(controller)
+    } else {
+      primary.push(controller)
+    }
+  }
+
+  return { primary, unverifiedLegacy }
+}
+
+export function preferredController(records: ControllerRecord[] | undefined): ControllerRecord | undefined {
+  const { primary, unverifiedLegacy } = partitionControllerInventory(records)
+  return (
+    primary.find((controller) => controller.active_connection_count > 0) ??
+    primary[0] ??
+    unverifiedLegacy[0]
+  )
 }
 
 const visibleInterval = (milliseconds: number) => () =>
