@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowLeftRight,
-  BatteryCharging,
   CalendarDays,
   History,
   ShieldAlert,
@@ -30,7 +29,6 @@ import {
   summarizeDay,
   type CurvePoint,
   type DayLabHistories,
-  type DaySummary,
 } from '../day-lab'
 import { useSystemIncidents, type IntelligenceIncident } from '../intelligence-api'
 import {
@@ -38,7 +36,6 @@ import {
   useSystemHistory,
   useSystems,
   type SystemEvent,
-  type SystemHistory,
 } from '../system-api'
 
 type ComparisonMode = 'previous' | '7d' | '30d'
@@ -120,7 +117,7 @@ function DayComparisonChart({
           min: 0,
           max: 1440,
           name: 'Local time',
-          axisLabel: { formatter: (value: number) => minuteLabel(value) },
+          axisLabel: { formatter: (value: string | number) => minuteLabel(Number(value)) },
         },
         yAxis: { type: 'value', name: 'Solar input (W)', min: 0 },
         dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18 }],
