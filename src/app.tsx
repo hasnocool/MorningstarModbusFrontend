@@ -11,6 +11,7 @@ import {
   Moon,
   RadioTower,
   Settings,
+  ShieldCheck,
   Sun,
   TableProperties,
   Wrench,
@@ -50,6 +51,10 @@ import {
   ControllerOverviewPage,
 } from './pages/controller-native'
 import {
+  ControllerOperationsIntelligencePage,
+  OperationsIntelligencePage,
+} from './pages/operations-intelligence'
+import {
   SiteEnergyPage,
   SiteEventsPage,
   SiteHistoryPage,
@@ -58,6 +63,7 @@ import {
   SiteTopologyPage,
 } from './pages/site'
 import './site-intelligence.css'
+import './operations-intelligence.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -130,6 +136,7 @@ function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?
     'live',
     'history',
     'energy',
+    'incidents',
     'registers',
     'intelligence',
     'diagnostics',
@@ -141,6 +148,7 @@ function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?
 
 const globalLinks = [
   { to: '/', label: 'Site overview', icon: LayoutDashboard },
+  { to: '/site/intelligence', label: 'Operations intelligence', icon: ShieldCheck },
   { to: '/site/power', label: 'Power flow', icon: Zap },
   { to: '/site/energy', label: 'Energy', icon: BatteryCharging },
   { to: '/site/history', label: 'Site history', icon: History },
@@ -155,8 +163,9 @@ const controllerLinks = [
   { suffix: 'live', label: 'Live telemetry', icon: Activity },
   { suffix: 'history', label: 'History integrity', icon: History },
   { suffix: 'energy', label: 'Energy truth', icon: BatteryCharging },
+  { suffix: 'incidents', label: 'Operations intelligence', icon: ShieldCheck },
   { suffix: 'registers', label: 'Registers', icon: TableProperties },
-  { suffix: 'intelligence', label: 'Intelligence', icon: RadioTower },
+  { suffix: 'intelligence', label: 'Device intelligence', icon: RadioTower },
   { suffix: 'diagnostics', label: 'Diagnostics', icon: Wrench },
   { suffix: 'data', label: 'Data', icon: Database },
 ]
@@ -185,7 +194,9 @@ function AppShell({ children }: PropsWithChildren) {
       ? 'Device catalog'
       : location.pathname === '/devices'
         ? 'Controller inventory'
-        : 'Site operations'
+        : location.pathname === '/site/intelligence'
+          ? 'Operations intelligence'
+          : 'Site operations'
 
   return (
     <div className="app-shell">
@@ -312,6 +323,7 @@ function RoutedApp() {
             <Suspense fallback={<LoadingState />}>
               <Routes>
                 <Route path="/" element={<SiteOverviewPage />} />
+                <Route path="/site/intelligence" element={<OperationsIntelligencePage />} />
                 <Route path="/site/power" element={<SitePowerFlowPage />} />
                 <Route path="/site/energy" element={<SiteEnergyPage />} />
                 <Route path="/site/history" element={<SiteHistoryPage />} />
@@ -324,6 +336,10 @@ function RoutedApp() {
                 <Route path="/controllers/:controllerUid/live" element={<LivePage />} />
                 <Route path="/controllers/:controllerUid/history" element={<ControllerHistoryPage />} />
                 <Route path="/controllers/:controllerUid/energy" element={<ControllerEnergyPage />} />
+                <Route
+                  path="/controllers/:controllerUid/incidents"
+                  element={<ControllerOperationsIntelligencePage />}
+                />
                 <Route path="/controllers/:controllerUid/registers" element={<RegistersPage />} />
                 <Route path="/controllers/:controllerUid/intelligence" element={<IntelligencePage />} />
                 <Route path="/controllers/:controllerUid/diagnostics" element={<ControllerDiagnosticsPage />} />
