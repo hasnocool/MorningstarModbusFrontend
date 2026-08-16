@@ -217,7 +217,11 @@ export function useSystemComponentGraph(systemUid?: string) {
     queryKey: ['system-component-graph', systemUid],
     enabled: Boolean(systemUid),
     queryFn: ({ signal }) =>
-      apiGet<SystemComponentGraph>(systemPath(systemUid ?? '', '/component-graph'), undefined, signal),
+      apiGet<SystemComponentGraph>(
+        systemPath(systemUid ?? '', '/component-graph'),
+        undefined,
+        signal,
+      ),
     staleTime: 30_000,
     retry: 1,
   })
@@ -226,7 +230,8 @@ export function useSystemComponentGraph(systemUid?: string) {
 export function useSystemMetricCatalog() {
   return useQuery({
     queryKey: ['system-metric-catalog'],
-    queryFn: ({ signal }) => apiGet<SystemMetricDefinition[]>('/v1/systems/metrics/catalog', undefined, signal),
+    queryFn: ({ signal }) =>
+      apiGet<SystemMetricDefinition[]>('/v1/systems/metrics/catalog', undefined, signal),
     staleTime: 30 * 60_000,
     retry: 1,
   })
@@ -289,14 +294,31 @@ export function useSystemStream(systemUid?: string): SystemStreamState {
       void queryClient.invalidateQueries({ queryKey: ['system-events', systemUid] })
     }
 
+    const refreshIncidents = () => {
+      setState('connected')
+      void queryClient.invalidateQueries({ queryKey: ['system-events', systemUid] })
+      void queryClient.invalidateQueries({ queryKey: ['system-incidents', systemUid] })
+      void queryClient.invalidateQueries({ queryKey: ['system-health-score', systemUid] })
+      void queryClient.invalidateQueries({ queryKey: ['system-baselines', systemUid] })
+      void queryClient.invalidateQueries({ queryKey: ['controller-incidents'] })
+      void queryClient.invalidateQueries({ queryKey: ['controller-health-score'] })
+      void queryClient.invalidateQueries({ queryKey: ['controller-charge-cycle'] })
+    }
+
     source.addEventListener('telemetry', refreshTelemetry)
     source.addEventListener('system_event', refreshEvents)
+    source.addEventListener('incident_opened', refreshIncidents)
+    source.addEventListener('incident_updated', refreshIncidents)
+    source.addEventListener('incident_resolved', refreshIncidents)
     source.onopen = () => setState('connected')
     source.onerror = () => setState('reconnecting')
 
     return () => {
       source.removeEventListener('telemetry', refreshTelemetry)
       source.removeEventListener('system_event', refreshEvents)
+      source.removeEventListener('incident_opened', refreshIncidents)
+      source.removeEventListener('incident_updated', refreshIncidents)
+      source.removeEventListener('incident_resolved', refreshIncidents)
       source.close()
     }
   }, [queryClient, systemUid])
