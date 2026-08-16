@@ -1,0 +1,218 @@
+.day-lab-page {
+  display: grid;
+  gap: 18px;
+}
+
+.day-lab-heading {
+  align-items: flex-start;
+}
+
+.day-lab-heading-actions,
+.day-lab-toolbar,
+.day-lab-stepper,
+.day-lab-chart-meta,
+.day-lab-observations p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.day-lab-heading-actions {
+  justify-content: flex-end;
+}
+
+.day-lab-toolbar {
+  justify-content: space-between;
+  align-items: end;
+}
+
+.day-lab-toolbar label {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.day-lab-toolbar input,
+.day-lab-toolbar select,
+.day-lab-stepper button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.day-lab-stepper button {
+  cursor: pointer;
+}
+
+.day-lab-stepper button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.day-lab-progress-note {
+  margin-top: 12px;
+}
+
+.day-lab-chart {
+  width: 100%;
+  min-height: 430px;
+}
+
+.day-lab-chart-meta {
+  justify-content: space-between;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.day-lab-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.day-lab-table {
+  display: grid;
+  overflow-x: auto;
+}
+
+.day-lab-table-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.3fr) repeat(3, minmax(110px, 0.75fr));
+  gap: 12px;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1px solid var(--border);
+  min-width: 660px;
+}
+
+.day-lab-table-row:first-child {
+  border-top: 0;
+}
+
+.day-lab-table-head {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day-lab-table-row strong {
+  font-size: 0.9rem;
+}
+
+.day-lab-observations {
+  display: grid;
+  gap: 8px;
+}
+
+.day-lab-observations p {
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  line-height: 1.45;
+}
+
+.day-lab-observations p:first-child {
+  border-top: 0;
+}
+
+.day-lab-observations svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.day-lab-causality-note {
+  margin-top: 14px;
+  line-height: 1.5;
+}
+
+.day-lab-evidence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.day-lab-evidence-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.day-lab-evidence-list article:first-child {
+  border-top: 0;
+}
+
+.day-lab-evidence-list article > div {
+  display: grid;
+  gap: 4px;
+}
+
+.day-lab-evidence-list article span,
+.day-lab-evidence-list article small {
+  color: var(--muted);
+}
+
+.day-lab-semantics-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.day-lab-semantics-note strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .day-lab-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .day-lab-heading-actions {
+    justify-content: flex-start;
+  }
+
+  .day-lab-toolbar {
+    align-items: stretch;
+  }
+
+  .day-lab-toolbar label,
+  .day-lab-stepper {
+    width: 100%;
+  }
+
+  .day-lab-stepper button {
+    flex: 1;
+  }
+
+  .day-lab-chart {
+    min-height: 360px;
+  }
+
+  .day-lab-chart-meta,
+  .day-lab-evidence-list article,
+  .day-lab-semantics-note {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
