@@ -57,6 +57,14 @@ export function numericPointValue(point: SystemHistoryPoint): number | undefined
   return undefined
 }
 
+function counterPointValue(point: SystemHistoryPoint): number | undefined {
+  const candidates = [point.last, point.value, point.avg, point.first]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate
+  }
+  return undefined
+}
+
 function pointTimestamp(point: SystemHistoryPoint): Date | undefined {
   const raw = point.bucket_start ?? point.observed_at
   if (!raw) return undefined
@@ -68,21 +76,30 @@ function minuteOfDay(date: Date): number {
   return date.getHours() * 60 + date.getMinutes()
 }
 
-export function curveForDay(
+function curveForDayWithValue(
   history: SystemHistory | undefined,
   day: string,
-  throughMinute = 1439,
+  throughMinute: number,
+  valueForPoint: (point: SystemHistoryPoint) => number | undefined,
 ): CurvePoint[] {
   return (history?.points ?? [])
     .flatMap((point) => {
       const date = pointTimestamp(point)
-      const value = numericPointValue(point)
+      const value = valueForPoint(point)
       if (!date || value === undefined || localDayKey(date) !== day) return []
       const minute = minuteOfDay(date)
       if (minute > throughMinute) return []
       return [{ minute, value }]
     })
     .sort((left, right) => left.minute - right.minute)
+}
+
+export function curveForDay(
+  history: SystemHistory | undefined,
+  day: string,
+  throughMinute = 1439,
+): CurvePoint[] {
+  return curveForDayWithValue(history, day, throughMinute, numericPointValue)
 }
 
 export function median(values: number[]): number | undefined {
@@ -120,12 +137,23 @@ export function summarizeDay(
   const output = curveForDay(histories.output, day, throughMinute)
   const voltage = curveForDay(histories.voltage, day, throughMinute)
   const current = curveForDay(histories.current, day, throughMinute)
-  const dailyCharge = curveForDay(histories.dailyCharge, day, throughMinute)
-  const series = [solar, output, voltage, current].filter((points) => points.length)
-  const expectedBuckets = Math.max(1, Math.ceil((Math.min(1439, throughMinute) + 1) / bucketMinutes))
-  const observedBuckets = series.length
-    ? Math.round(series.reduce((sum, points) => sum + Math.min(points.length, expectedBuckets), 0) / series.length)
-    : 0
+  const dailyCharge = curveForDayWithValue(
+    histories.dailyCharge,
+    day,
+    throughMinute,
+    counterPointValue,
+  )
+  const series = [solar, output, voltage, current]
+  const expectedBuckets = Math.max(
+    1,
+    Math.ceil((Math.min(1439, throughMinute) + 1) / bucketMinutes),
+  )
+  const observedBuckets = Math.round(
+    series.reduce(
+      (sum, points) => sum + Math.min(points.length, expectedBuckets),
+      0,
+    ) / series.length,
+  )
 
   return {
     day,
