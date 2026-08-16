@@ -1,0 +1,6 @@
+@media (max-width: 620px) {
+  /* The mobile rail already scrolls horizontally; keep every destination reachable. */
+  .sidebar nav .nav-link:nth-of-type(n + 6) {
+    display: flex;
+  }
+}
