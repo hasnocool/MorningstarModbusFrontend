@@ -17,7 +17,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { Suspense, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   BrowserRouter,
@@ -64,6 +64,8 @@ import {
 } from './pages/site'
 import './site-intelligence.css'
 import './operations-intelligence.css'
+
+const TelemetryHistoryPage = lazy(() => import('./pages/history'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -131,9 +133,11 @@ function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?
   const controller = controllerForDevice(controllers.data, deviceId)
   if (!controller) return <Navigate to="/devices" replace />
 
+  const legacyDestination = section === 'history' ? 'telemetry-history' : section
   const supported = new Set([
     'overview',
     'live',
+    'telemetry-history',
     'history',
     'energy',
     'incidents',
@@ -142,7 +146,7 @@ function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?
     'diagnostics',
     'data',
   ])
-  const destination = supported.has(section || '') ? section : defaultSection
+  const destination = supported.has(legacyDestination || '') ? legacyDestination : defaultSection
   return <Navigate to={`/controllers/${controller.controller_uid}/${destination}`} replace />
 }
 
@@ -161,7 +165,8 @@ const globalLinks = [
 const controllerLinks = [
   { suffix: 'overview', label: 'Overview', icon: Gauge },
   { suffix: 'live', label: 'Live telemetry', icon: Activity },
-  { suffix: 'history', label: 'History integrity', icon: History },
+  { suffix: 'telemetry-history', label: 'Telemetry history', icon: History },
+  { suffix: 'history', label: 'History integrity', icon: Database },
   { suffix: 'energy', label: 'Energy truth', icon: BatteryCharging },
   { suffix: 'incidents', label: 'Operations intelligence', icon: ShieldCheck },
   { suffix: 'registers', label: 'Registers', icon: TableProperties },
@@ -233,6 +238,14 @@ function AppShell({ children }: PropsWithChildren) {
                   {label}
                 </NavLink>
               ))}
+              <NavLink
+                to={`/display/controller/${controllerUid}`}
+                className="nav-link"
+                aria-label="Wall display"
+              >
+                <Monitor size={17} />
+                Wall display
+              </NavLink>
             </>
           )}
 
@@ -276,6 +289,7 @@ function AppShell({ children }: PropsWithChildren) {
                 className="icon-button"
                 to={`/display/controller/${currentController.controller_uid}`}
                 title="Wall display"
+                aria-label="Wall display"
               >
                 <Monitor size={18} />
               </NavLink>
@@ -334,6 +348,10 @@ function RoutedApp() {
                 <Route path="/devices/:deviceKey/:section" element={<LegacyDeviceRedirect />} />
                 <Route path="/controllers/:controllerUid/overview" element={<ControllerOverviewPage />} />
                 <Route path="/controllers/:controllerUid/live" element={<LivePage />} />
+                <Route
+                  path="/controllers/:controllerUid/telemetry-history"
+                  element={<TelemetryHistoryPage />}
+                />
                 <Route path="/controllers/:controllerUid/history" element={<ControllerHistoryPage />} />
                 <Route path="/controllers/:controllerUid/energy" element={<ControllerEnergyPage />} />
                 <Route
