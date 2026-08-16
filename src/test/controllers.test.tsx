@@ -196,7 +196,9 @@ describe('controller inventory', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'Controllers' })).toBeInTheDocument()
-    expect(screen.getByText('Controllers').closest('div')).toHaveTextContent('1')
+    expect(
+      screen.getByText('Controllers', { selector: '.controller-inventory-summary span' }).closest('div'),
+    ).toHaveTextContent('1')
     expect(screen.getByText('Unverified legacy').closest('div')).toHaveTextContent('1')
 
     const legacySummary = screen.getByText('1 unverified legacy record')
