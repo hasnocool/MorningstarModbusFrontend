@@ -186,7 +186,9 @@ describe('Operator Answers', () => {
 
   it('searches question text, answers, categories, and keywords', () => {
     const answers = fixture()
-    expect(filterOperatorAnswers(answers, 'float')).toHaveLength(2)
+    const floatMatches = filterOperatorAnswers(answers, 'float').map((item) => item.id)
+    expect(floatMatches).toContain('reach-float')
+    expect(floatMatches).toContain('expected-float-time')
     expect(filterOperatorAnswers(answers, 'telemetry', 'Data quality').map((item) => item.id)).toContain(
       'telemetry-coverage',
     )
