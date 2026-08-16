@@ -68,10 +68,12 @@ import './site-intelligence.css'
 import './operations-intelligence.css'
 import './forecast.css'
 import './digital-twin.css'
+import './replay.css'
 
 const TelemetryHistoryPage = lazy(() => import('./pages/history'))
 const ForecastPage = lazy(() => import('./pages/forecast'))
 const SiteDigitalTwinPage = lazy(() => import('./pages/digital-twin'))
+const SiteReplayPage = lazy(() => import('./pages/replay'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -160,6 +162,7 @@ const globalLinks = [
   { to: '/', label: 'Site overview', icon: LayoutDashboard },
   { to: '/site/forecast', label: 'Solar day planner', icon: TrendingUp },
   { to: '/site/twin', label: 'Site digital twin', icon: Network },
+  { to: '/site/replay', label: 'Site replay', icon: History },
   { to: '/site/intelligence', label: 'Operations intelligence', icon: ShieldCheck },
   { to: '/site/power', label: 'Power flow', icon: Zap },
   { to: '/site/energy', label: 'Energy', icon: BatteryCharging },
@@ -211,9 +214,11 @@ function AppShell({ children }: PropsWithChildren) {
           ? 'Solar day planner'
           : location.pathname === '/site/twin'
             ? 'Site digital twin'
-            : location.pathname === '/site/intelligence'
-              ? 'Operations intelligence'
-              : 'Site operations'
+            : location.pathname === '/site/replay'
+              ? 'Historical site replay'
+              : location.pathname === '/site/intelligence'
+                ? 'Operations intelligence'
+                : 'Site operations'
 
   return (
     <div className="app-shell">
@@ -351,6 +356,7 @@ function RoutedApp() {
                 <Route path="/" element={<SiteOverviewPage />} />
                 <Route path="/site/forecast" element={<ForecastPage />} />
                 <Route path="/site/twin" element={<SiteDigitalTwinPage />} />
+                <Route path="/site/replay" element={<SiteReplayPage />} />
                 <Route path="/site/intelligence" element={<OperationsIntelligencePage />} />
                 <Route path="/site/power" element={<SitePowerFlowPage />} />
                 <Route path="/site/energy" element={<SiteEnergyPage />} />
