@@ -2,239 +2,253 @@
 
 ## Product boundary
 
-MorningstarModbusFrontend is a read-only browser client for MorningstarModbusAPI. It does not open
-serial devices, issue Modbus requests, mutate controller configuration, or own telemetry truth.
-The backend owns discovery, device identity, register decoding, persistence, controller history,
-device intelligence, catalog semantics, and time-series aggregation.
+MorningstarModbusFrontend is a read-only browser client for MorningstarModbusAPI. It never opens
+serial devices, issues Modbus writes, mutates controller configuration, acknowledges alarms, or owns
+telemetry truth. The backend owns discovery, physical-controller identity, decoding, persistence,
+retained-history reconciliation, incidents, system aggregation, and engineering metadata.
 
 ```text
-Morningstar controller
+Morningstar controller(s)
         |
         v
 MorningstarModbusAPI
         |
-        +-- physical-controller inventory
-        +-- raw device/connection records
-        +-- SQLite telemetry/history
-        +-- device intelligence/catalog/register map
-        +-- optional polling-performance metrics
+        +-- controller inventory / immutable controller_uid
+        +-- raw connection/device provenance
+        +-- controller-native history + energy
+        +-- system/site aggregation
+        +-- incidents + baselines + health scores
+        +-- engineering catalog/register metadata
         |
         v
 same-origin reverse proxy
         |
-        +-- /       Vite static frontend
+        +-- /       Vite frontend
         +-- /api/*  backend (prefix stripped)
         |
         v
 browser
 ```
 
-The frontend treats backend data as authoritative. It may derive labels, filtering, layout, and
-presentation state, but it must not invent controller semantics.
+The frontend may derive presentation state, labels, chart selection, and layout, but backend evidence
+and quality metadata remain authoritative.
 
 ## Application layers
 
 ```text
 src/
-├── api.ts                  raw-device HTTP contracts, errors, query hooks, refresh policies
-├── controller-api.ts       physical-controller inventory contract (`/v1/controllers`)
-├── lib.ts                  URL IDs, telemetry selection, formatting, register-map flattening
-├── register-semantics.ts   reserved-range classification and semantic-series filtering
-├── components.tsx          reusable operational UI primitives
-├── app.tsx                 providers, shell, routing, feature-level lazy loading
+├── api.ts                    raw-device engineering HTTP contracts and shared primitives
+├── controller-api.ts         physical-controller inventory (`/v1/controllers`)
+├── controller-data.ts        controller-native latest/history/stats/energy/polling/export hooks
+├── system-api.ts             site/system latest, power, energy, history, events, topology, SSE
+├── intelligence-api.ts       incidents, health score, baselines, charge-cycle hooks
+├── lib.ts                    formatting, URL compatibility IDs, telemetry helpers
+├── register-semantics.ts     semantic/reserved register classification
+├── components.tsx            reusable operator UI primitives
+├── app.tsx                   providers, shell, canonical routing, legacy redirects
 ├── pages/
-│   ├── core.tsx            controller inventory, overview, live telemetry, wall display
-│   ├── history.tsx         ECharts time-series explorer (lazy chunk)
-│   └── engineering.tsx     registers, intelligence, diagnostics, data/export, catalog, settings
-├── controller-inventory.css
-└── styles.css              semantic design tokens + responsive industrial theme
+│   ├── core.tsx              inventory, active telemetry, standalone wall display
+│   ├── controller-native.tsx controller overview, integrity, energy, diagnostics, data
+│   ├── history.tsx           lazy ECharts controller-native telemetry explorer
+│   ├── site.tsx              site overview/power/energy/history/events/topology
+│   ├── operations-intelligence.tsx
+│   │                         site + controller incident/health/baseline views
+│   └── engineering.tsx       register map, device intelligence, catalog, settings
+└── styles / feature CSS
 ```
 
-TanStack Query owns server state. The application intentionally avoids a general client-side state
-store. Route state owns the active connection; local component state owns filters; localStorage owns
-presentation preferences such as theme.
+TanStack Query owns server state. Route state identifies the site/controller workspace; local
+component state owns filters and chart selections; localStorage owns presentation preferences such as
+theme.
 
-## Identity model: controller versus connection
+## Identity model
 
-The frontend currently uses two backend identity surfaces.
+The UI uses three backend identity levels.
 
-### Physical controller inventory
+### `system_uid`
 
-`GET /v1/controllers` supplies controller records used by the `/devices` inventory and system shell.
-One record represents one physical Morningstar controller and can contain several historical or
-current connections.
+Represents the persistent installation/site grouping. Site pages use `/v1/systems/{system_uid}/...`
+for normalized latest telemetry, power flow, energy, history, events, topology, component graph,
+incidents, baselines, health scoring, and the SSE stream.
 
-A controller record includes its current raw `device_id`, current endpoint, prior endpoint history,
-status, model/profile metadata, serial/firmware information when available, and an identity source.
-The UI therefore does not duplicate one controller just because `/dev/ttyUSB0` changed to another USB
-path or because a network address changed.
+### `controller_uid`
 
-### Device-scoped workspaces
+Represents the immutable physical Morningstar controller and is the canonical controller route key.
+The following operator surfaces are controller-native:
 
-The current controller workspace routes still use the selected controller's `current_device_id`.
-That ID is base64url-encoded into `:deviceKey` and is restored before requests to `/v1/devices/...`.
-This keeps raw storage/provenance compatibility while inventory remains controller-oriented.
+- latest telemetry;
+- multi-series historical telemetry;
+- register statistics;
+- history summary/coverage/gaps;
+- energy daily/summary reconciliation;
+- polling diagnostics;
+- controller-scoped export;
+- incidents and health scoring;
+- charge-cycle summaries.
 
-This distinction is intentional and should be preserved until the workspace query layer is migrated
-to immutable controller-scoped endpoints end-to-end.
+A USB path, TCP address, or backend `device_id` can change without changing the controller URL.
+Historical API responses may still expose `source_device_id` so provenance is preserved.
 
-## Device routing
+### `device_id`
 
-Backend raw device IDs can include serial paths such as `/dev/ttyUSB0`. Raw IDs must not be used
-directly as React Router path segments. `encodeDeviceId` converts the UTF-8 identifier to base64url
-and `decodeDeviceId` restores it before API calls.
+Represents the raw telemetry-owning connection/storage identity. It is no longer the canonical
+controller bookmark. The frontend resolves the controller's current `device_id` only for engineering
+resources that remain device-scoped in the backend, such as register-map, device-intelligence, and
+profile-validation endpoints.
 
-Routes are deterministic and bookmarkable while avoiding wildcard/path ambiguity.
+## Routing
 
-`/` is not a standalone aggregate dashboard when controllers are present: it resolves the physical
-controller inventory and redirects to the first controller's current connection overview.
+Canonical site routes:
 
-## Query cadence
+```text
+/
+/site/intelligence
+/site/power
+/site/energy
+/site/history
+/site/events
+/site/topology
+/devices
+```
 
-| Resource | Browser refresh/cache policy |
-| --- | ---: |
-| `/health` | 10 s while visible |
-| physical controller inventory | 5 s while visible |
-| raw device inventory | 5 s while visible |
-| latest telemetry | 1 s while visible |
-| intelligence | 60 s stale cache |
-| register map | 5 min stale cache |
-| history | user/request driven |
-| register statistics | 10 s stale cache |
-| history summary | 10 s stale cache |
-| polling performance | 5 s while visible when supported |
-| catalog | 30 min stale cache |
+Canonical controller routes:
 
-The visible-page interval helper stops interval refetching when the document is hidden. Browser query
-cadence does not configure controller Modbus polling or backend persistence cadence.
+```text
+/controllers/:controllerUid/overview
+/controllers/:controllerUid/live
+/controllers/:controllerUid/telemetry-history
+/controllers/:controllerUid/history
+/controllers/:controllerUid/energy
+/controllers/:controllerUid/incidents
+/controllers/:controllerUid/registers
+/controllers/:controllerUid/intelligence
+/controllers/:controllerUid/diagnostics
+/controllers/:controllerUid/data
+/display/controller/:controllerUid
+```
 
-A backend may poll the controller faster than it persists telemetry. In that case a displayed
-`poll_rate_hz` derived from persisted performance rows is not necessarily the instantaneous live
-Modbus read rate.
+`telemetry-history` and `history` deliberately mean different things. The former is the interactive
+multi-series chart explorer. The latter is History Integrity: evidence coverage, controller-retained
+recovery, partial periods, and real gaps.
+
+Legacy `/devices/:deviceKey/...` bookmarks decode the historical raw device ID, resolve it through the
+controller inventory, and replace the route with the immutable controller path. Legacy `history`
+bookmarks map to `telemetry-history` to preserve the pre-v0.2 graphing behavior.
+
+## Query and live-update cadence
+
+| Resource | Browser behavior |
+| --- | --- |
+| health | periodic visibility-aware refresh |
+| controller inventory | periodic visibility-aware refresh |
+| controller latest | fast periodic refresh; also refreshed from site SSE |
+| site latest/power/energy | query cache + SSE invalidation |
+| controller history/statistics | user/range driven |
+| history coverage/gaps | slower evidence cache |
+| incidents/health/baselines/charge cycle | query cache + incident SSE invalidation |
+| register map | long-lived engineering cache |
+| catalog | long-lived cache |
+
+The system `EventSource` stream can carry telemetry, system events, and incident lifecycle events.
+SSE never becomes the only delivery path: normal queries remain the reconnect/fallback mechanism.
+Browser refresh cadence is independent from Modbus polling and database persistence cadence.
+
+## Historical telemetry
+
+`pages/history.tsx` is lazy-loaded so Apache ECharts does not inflate the initial application shell.
+The page queries controller-scoped history and statistics using immutable `controller_uid`.
+
+Capabilities include:
+
+- 1h, 6h, 24h, 7d, and 30d presets;
+- auto/raw/1m/5m/15m/1h/1d resolution selection;
+- up to eight simultaneous semantic series;
+- inside and slider zoom;
+- representative/average line plus min/max envelopes when supplied by the backend;
+- categorical state transition timeline;
+- range statistics;
+- explicit handling of the backend `413` oversized-history guardrail.
+
+Default series selection prioritizes battery voltage, array voltage, charge current, output/input
+power, and charge state when present. Register-map semantics still come from the active engineering
+connection, but the actual time-series query spans all source device IDs associated with the physical
+controller.
+
+## History integrity and retained evidence
+
+History Integrity is separate from graph history. It uses controller coverage/gap endpoints to explain
+which periods are backed by realtime samples, retained controller daily records, partial evidence, or
+no recoverable evidence. The frontend must never synthesize high-frequency points from daily retained
+records merely to make a graph look continuous.
+
+## Operations Intelligence
+
+The v0.3 intelligence UI consumes backend findings rather than implementing detector thresholds in
+React. It displays:
+
+- active and resolved incident lifecycle;
+- severity and confidence;
+- observed versus expected values;
+- evidence/provenance;
+- decomposed health score categories and incident-linked penalties;
+- offline historical solar baselines;
+- controller charge-cycle summaries.
+
+Incident lifecycle SSE events invalidate the relevant site/controller intelligence caches. The UI
+remains read-only and performs no alarm acknowledgement or control action.
 
 ## Register semantics pipeline
 
 Register presentation has three classes:
 
-1. **Named semantic register** - defined by the backend's active firmware-aware register map.
-2. **Documented reserved word** - intentionally unnamed by Morningstar and identified by backend `reserved_ranges` metadata.
-3. **Genuinely unknown raw address** - not covered by a semantic definition or a documented reserved range.
+1. **Named semantic register** - defined by the backend firmware-aware register map.
+2. **Documented reserved word** - intentionally unnamed and identified by `reserved_ranges`.
+3. **Genuinely unknown raw address** - not covered by a semantic definition or reserved range.
 
-The frontend must not convert class 2 into class 3.
+The frontend must never turn class 2 into class 3. `register-semantics.ts` also retains the narrow
+TriStar MPPT v11 reserved-range compatibility fallback for older backend deployments.
 
-`flattenRegisterDefinitions` expands named multi-word fields and backend `reserved_ranges` into
-address coverage. `semanticRegisterValues` then removes duplicate raw aliases that overlap a named or
-documented address. The History route additionally uses `register-semantics.ts` so an older backend
-without `reserved_ranges` still gets the known TriStar MPPT v11 reserved spans:
+## Wall display
 
-- `0x0005-0x0017`
-- `0x002D`
-- `0x003F`
-- `0x004A`
-- `0xE0C4-0xE0CB`
+The standalone wall display lives outside the normal application shell at:
 
-That fallback is deliberately profile-specific. Unknown raw addresses for other profiles remain
-visible rather than being hidden speculatively.
+```text
+/display/controller/:controllerUid
+```
 
-This design keeps the UI truthful: documented data receives semantic names, reserved words remain
-reserved, and real catalog gaps remain observable.
-
-## Live telemetry and register explorer
-
-The Live page joins the latest persisted values to the effective register map and hides raw aliases
-that overlap known semantic or reserved addresses. It still exposes actual unknown raw rows for
-engineering diagnostics.
-
-The Register explorer is catalog-first: it displays firmware-filtered definitions, addresses,
-functions, units, descriptions, and the current persisted value when available. The frontend never
-adds controls for Modbus writes.
-
-## Historical telemetry
-
-The history route is the only route that imports Apache ECharts. Vite therefore emits charting as a
-lazy route chunk instead of making the initial operations shell pay the chart-library cost.
-
-Numeric aggregated series display the backend average/representative line and, when present, retain
-min/max envelope lines. Text/state registers are kept out of numeric axes and receive a transition
-timeline.
-
-The series picker uses the same semantic/reserved filtering as live telemetry, so documented reserved
-words cannot become selectable fake time series.
-
-The frontend honors the backend `413` history-size guardrail and explains that the operator should use
-a coarser resolution or shorter range instead of presenting a generic HTTP error.
+It is linked both from the controller navigation and the top-bar monitor action. Controller identity
+is stable; the page resolves the current connection for active telemetry while preserving the
+controller-native URL.
 
 ## Data and export
 
-The Data page builds streaming backend export URLs instead of loading complete exports into browser
-memory. It supports CSV or JSONL, explicit history resolution, time presets, and register selection.
-Backend raw/aggregated history semantics remain authoritative.
-
-## Device intelligence
-
-The Intelligence page displays the backend's model/profile decision rather than attempting its own
-device classifier. Evidence, warnings, confidence, firmware, hardware revision, serial metadata,
-catalog revision, and runtime profile validation are shown directly from backend responses.
-
-## Optional backend features
-
-Polling performance is feature detected:
-
-```text
-GET /v1/devices/polling/performance
-  200 -> render diagnostics metrics
-  404 -> render an unavailable/upgrade state
-```
-
-A missing optional endpoint cannot break the core dashboard.
-
-The frontend also consumes `reserved_ranges` when present in the register-map payload while retaining
-the narrow TS-MPPT v11 compatibility fallback described above.
+The Data page builds controller-scoped streaming backend export URLs instead of loading complete
+exports into browser memory. CSV/JSONL, time range, history resolution, and selected semantic names
+remain backend-authoritative.
 
 ## Reliability states
 
-Every major data surface must be able to represent:
-
-- loading
-- loaded
-- empty
-- stale
-- backend unavailable
-- controller/connection unavailable
-- unsupported feature/register
-- oversized history query
-- persisted device error
-
-Historical views remain navigable when live telemetry is unavailable.
-
-## Theming and accessibility
-
-Visual styling is based on semantic variables such as `--energy-solar`, `--energy-battery`,
-`--state-warning`, and `--surface-panel`. Components should not use color as the only carrier of
-meaning.
-
-The app ships dark, light, and high-contrast themes. It respects `prefers-reduced-motion`, uses
-visible focus rings, preserves table semantics, and exposes chart/power-flow labels for assistive
-technology.
+Every major surface must represent loading, loaded, empty, stale, backend unavailable, controller
+offline, unsupported feature/register, oversized history query, and persisted error states.
+Historical/integrity views remain navigable when live telemetry is unavailable.
 
 ## Testing and CI
 
-The repository's normal quality surface includes:
+The repository quality surface includes:
 
 - ESLint;
-- strict TypeScript build/type checking;
+- strict TypeScript;
 - Vitest + Testing Library;
-- MSW-backed API/component tests;
+- MSW API/component fixtures;
 - production Vite build;
 - gzip bundle-size guard;
-- Playwright browser E2E against the production build.
+- Playwright browser E2E.
 
-Register semantic tests specifically cover backend-published reserved ranges, the older-API TriStar
-fallback, shared Live-page filtering, and preservation of genuinely unknown raw addresses.
+The v0.3.1 telemetry-history/wall-display restoration passed this entire surface before release.
 
 ## Deployment
 
-Recommended Caddy/nginx behavior:
+Recommended reverse-proxy behavior:
 
 ```text
 /           -> static dist/
@@ -242,12 +256,11 @@ Recommended Caddy/nginx behavior:
 ```
 
 Keeping both surfaces on one origin avoids broad CORS rules and simplifies isolated LAN/off-grid
-deployment.
+deployment and same-origin `EventSource` use.
 
 ## Current architectural boundary
 
-The inventory is controller-first, but most detailed controller workspace queries remain raw
-`device_id` scoped. This is the primary compatibility seam in the current frontend. When the backend
-controller-scoped history/latest/register APIs become the frontend's default integration surface, the
-route/context layer can migrate from encoded `current_device_id` to immutable controller identity
-without changing the visual workspace structure.
+The primary operational model is now controller-native and site-native. The remaining intentional
+compatibility seam is limited to engineering metadata endpoints that the backend still exposes by raw
+`device_id`. Those views must continue to display their device/connection provenance explicitly and
+must not be mistaken for lifetime physical-controller state.
