@@ -61,7 +61,6 @@ import {
   SiteEnergyPage,
   SiteEventsPage,
   SiteHistoryPage,
-  SiteOverviewPage,
   SitePowerFlowPage,
   SiteTopologyPage,
 } from './pages/site'
@@ -79,6 +78,7 @@ const SiteDigitalTwinPage = lazy(() => import('./pages/digital-twin'))
 const SiteReplayPage = lazy(() => import('./pages/replay'))
 const DayLabPage = lazy(() => import('./pages/day-lab'))
 const OperatorAnswersPage = lazy(() => import('./pages/operator-answers'))
+const SiteDashboardPage = lazy(() => import('./pages/site-dashboard'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -364,7 +364,7 @@ function RoutedApp() {
           <AppShell>
             <Suspense fallback={<LoadingState />}>
               <Routes>
-                <Route path="/" element={<SiteOverviewPage />} />
+                <Route path="/" element={<SiteDashboardPage />} />
                 <Route path="/site/questions" element={<OperatorAnswersPage />} />
                 <Route path="/site/forecast" element={<ForecastPage />} />
                 <Route path="/site/twin" element={<SiteDigitalTwinPage />} />
