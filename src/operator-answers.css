@@ -1,0 +1,232 @@
+.operator-answers-page {
+  display: grid;
+  gap: 18px;
+}
+
+.operator-answers-heading {
+  align-items: flex-start;
+}
+
+.operator-answer-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-raised);
+}
+
+.operator-answer-search svg {
+  color: var(--muted);
+}
+
+.operator-answer-search input {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.operator-answer-search input::placeholder {
+  color: var(--muted);
+}
+
+.operator-answer-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.operator-answer-categories button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.operator-answer-categories button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.operator-answer-search-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.operator-answer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.operator-answer-card {
+  display: grid;
+  align-content: start;
+  gap: 11px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.operator-answer-card.status-critical {
+  border-style: solid;
+  border-width: 2px;
+}
+
+.operator-answer-card.status-warning {
+  border-style: dashed;
+}
+
+.operator-answer-card.status-unknown {
+  opacity: 0.78;
+}
+
+.operator-answer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.operator-answer-head > div {
+  min-width: 0;
+}
+
+.operator-answer-head span:first-child {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.operator-answer-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.operator-answer-value {
+  font-size: 1.18rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.operator-answer-card > p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.operator-answer-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.operator-answer-evidence {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+
+.operator-answer-evidence summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.operator-answer-evidence ul {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.operator-answer-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.operator-answer-action:hover {
+  text-decoration: underline;
+}
+
+.operator-answer-semantics {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 15px 16px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.operator-answer-semantics svg {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.operator-answer-semantics div {
+  display: grid;
+  gap: 5px;
+}
+
+.operator-answer-semantics strong {
+  color: var(--text);
+}
+
+.operator-answer-semantics span {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+@media (max-width: 950px) {
+  .operator-answer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .operator-answer-search-meta,
+  .operator-answer-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operator-answer-semantics {
+    grid-template-columns: 1fr;
+  }
+}
