@@ -1,0 +1,13 @@
+.site-dashboard-composition {
+  min-width: 0;
+}
+
+.site-dashboard-answers {
+  padding-top: 0;
+}
+
+@media (max-width: 680px) {
+  .site-dashboard-answers {
+    padding-top: 0;
+  }
+}
