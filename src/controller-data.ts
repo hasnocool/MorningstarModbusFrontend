@@ -66,15 +66,21 @@ export interface ControllerGaps {
   [key: string]: unknown
 }
 
+export interface ControllerEnergyComparison {
+  controller_reported_wh?: number | null
+  integrated_output_wh?: number | null
+  difference_wh?: number | null
+  difference_percent?: number | null
+  /** @deprecated Compatibility alias for older presentation code. */
+  discrepancy_wh?: number | null
+  /** @deprecated Compatibility alias for older presentation code. */
+  discrepancy_percent?: number | null
+  [key: string]: unknown
+}
+
 export interface ControllerEnergyDay {
   date: string
-  energy?: {
-    controller_reported_wh?: number | null
-    integrated_output_wh?: number | null
-    discrepancy_wh?: number | null
-    discrepancy_percent?: number | null
-    [key: string]: unknown
-  }
+  energy?: ControllerEnergyComparison
   quality?: {
     provenance?: string[]
     integrated_seconds?: number | null
@@ -92,13 +98,7 @@ export interface ControllerEnergyDaily {
 
 export interface ControllerEnergySummary {
   controller_uid?: string
-  energy?: {
-    controller_reported_wh?: number | null
-    integrated_output_wh?: number | null
-    discrepancy_wh?: number | null
-    discrepancy_percent?: number | null
-    [key: string]: unknown
-  }
+  energy?: ControllerEnergyComparison
   quality?: Record<string, unknown>
   [key: string]: unknown
 }
@@ -123,6 +123,42 @@ function rangeParams(from?: string, to?: string): URLSearchParams {
   if (from) params.set('from', from)
   if (to) params.set('to', to)
   return params
+}
+
+function normalizeEnergyComparison(
+  energy: ControllerEnergyComparison | undefined,
+): ControllerEnergyComparison | undefined {
+  if (!energy) return energy
+  const differenceWh = energy.difference_wh ?? energy.discrepancy_wh ?? null
+  const differencePercent = energy.difference_percent ?? energy.discrepancy_percent ?? null
+  return {
+    ...energy,
+    difference_wh: differenceWh,
+    difference_percent: differencePercent,
+    discrepancy_wh: differenceWh,
+    discrepancy_percent: differencePercent,
+  }
+}
+
+export function normalizeControllerEnergyDaily(
+  payload: ControllerEnergyDaily,
+): ControllerEnergyDaily {
+  return {
+    ...payload,
+    days: payload.days.map((day) => ({
+      ...day,
+      energy: normalizeEnergyComparison(day.energy),
+    })),
+  }
+}
+
+export function normalizeControllerEnergySummary(
+  payload: ControllerEnergySummary,
+): ControllerEnergySummary {
+  return {
+    ...payload,
+    energy: normalizeEnergyComparison(payload.energy),
+  }
 }
 
 export function useController(controllerUid?: string) {
@@ -262,14 +298,15 @@ export function useControllerEnergyDaily(
   return useQuery({
     queryKey: ['controller-energy-daily', controllerUid, from, to, maxGapSeconds],
     enabled: Boolean(controllerUid),
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       const params = rangeParams(from, to)
       params.set('max_gap_seconds', String(maxGapSeconds))
-      return apiGet<ControllerEnergyDaily>(
+      const payload = await apiGet<ControllerEnergyDaily>(
         controllerPath(controllerUid ?? '', '/energy/daily'),
         params,
         signal,
       )
+      return normalizeControllerEnergyDaily(payload)
     },
     staleTime: 30_000,
     retry: 1,
@@ -285,14 +322,15 @@ export function useControllerEnergySummary(
   return useQuery({
     queryKey: ['controller-energy-summary', controllerUid, from, to, maxGapSeconds],
     enabled: Boolean(controllerUid),
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       const params = rangeParams(from, to)
       params.set('max_gap_seconds', String(maxGapSeconds))
-      return apiGet<ControllerEnergySummary>(
+      const payload = await apiGet<ControllerEnergySummary>(
         controllerPath(controllerUid ?? '', '/energy/summary'),
         params,
         signal,
       )
+      return normalizeControllerEnergySummary(payload)
     },
     staleTime: 30_000,
     retry: 1,
