@@ -3,6 +3,7 @@ import {
   BatteryCharging,
   BookOpenText,
   Boxes,
+  CircleHelp,
   Database,
   Gauge,
   History,
@@ -70,12 +71,14 @@ import './forecast.css'
 import './digital-twin.css'
 import './replay.css'
 import './day-lab.css'
+import './operator-answers.css'
 
 const TelemetryHistoryPage = lazy(() => import('./pages/history'))
 const ForecastPage = lazy(() => import('./pages/forecast'))
 const SiteDigitalTwinPage = lazy(() => import('./pages/digital-twin'))
 const SiteReplayPage = lazy(() => import('./pages/replay'))
 const DayLabPage = lazy(() => import('./pages/day-lab'))
+const OperatorAnswersPage = lazy(() => import('./pages/operator-answers'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -162,6 +165,7 @@ function LegacyDeviceRedirect({ defaultSection = 'overview' }: { defaultSection?
 
 const globalLinks = [
   { to: '/', label: 'Site overview', icon: LayoutDashboard },
+  { to: '/site/questions', label: 'Operator answers', icon: CircleHelp },
   { to: '/site/forecast', label: 'Solar day planner', icon: TrendingUp },
   { to: '/site/twin', label: 'Site digital twin', icon: Network },
   { to: '/site/replay', label: 'Site replay', icon: History },
@@ -213,17 +217,19 @@ function AppShell({ children }: PropsWithChildren) {
       ? 'Device catalog'
       : location.pathname === '/devices'
         ? 'Controller inventory'
-        : location.pathname === '/site/forecast'
-          ? 'Solar day planner'
-          : location.pathname === '/site/twin'
-            ? 'Site digital twin'
-            : location.pathname === '/site/replay'
-              ? 'Historical site replay'
-              : location.pathname === '/site/day-lab'
-                ? 'Comparative performance intelligence'
-                : location.pathname === '/site/intelligence'
-                  ? 'Operations intelligence'
-                  : 'Site operations'
+        : location.pathname === '/site/questions'
+          ? 'Operator answers'
+          : location.pathname === '/site/forecast'
+            ? 'Solar day planner'
+            : location.pathname === '/site/twin'
+              ? 'Site digital twin'
+              : location.pathname === '/site/replay'
+                ? 'Historical site replay'
+                : location.pathname === '/site/day-lab'
+                  ? 'Comparative performance intelligence'
+                  : location.pathname === '/site/intelligence'
+                    ? 'Operations intelligence'
+                    : 'Site operations'
 
   return (
     <div className="app-shell">
@@ -359,6 +365,7 @@ function RoutedApp() {
             <Suspense fallback={<LoadingState />}>
               <Routes>
                 <Route path="/" element={<SiteOverviewPage />} />
+                <Route path="/site/questions" element={<OperatorAnswersPage />} />
                 <Route path="/site/forecast" element={<ForecastPage />} />
                 <Route path="/site/twin" element={<SiteDigitalTwinPage />} />
                 <Route path="/site/replay" element={<SiteReplayPage />} />
