@@ -95,6 +95,12 @@
   overflow-wrap: anywhere;
 }
 
+.operator-answer-dashboard-actions {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
 .operator-answer-dashboard-row a {
   display: inline-flex;
   align-items: center;
@@ -126,13 +132,17 @@
 }
 
 @media (max-width: 680px) {
-  .operator-answer-dashboard-header,
-  .operator-answer-dashboard-row {
-    grid-template-columns: 1fr;
+  .operator-answer-dashboard-header {
     flex-direction: column;
   }
 
   .operator-answer-dashboard-row {
-    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .operator-answer-dashboard-actions {
+    justify-items: start;
+    grid-template-columns: auto auto;
+    align-items: center;
   }
 }
